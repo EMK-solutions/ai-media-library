@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type DesktopApi } from "../src/shared/ipc";
 import { PIPELINE_IPC_CHANNELS } from "../src/shared/pipeline-ipc";
+import type { PipelineQueueSnapshot } from "../src/shared/pipeline-types";
 
 const api: DesktopApi = {
   selectLibraryFolder: () => ipcRenderer.invoke(IPC_CHANNELS.selectLibraryFolder),
@@ -472,6 +473,9 @@ const api: DesktopApi = {
         ipcRenderer.removeListener(PIPELINE_IPC_CHANNELS.lifecycle, wrapped);
       };
     },
+    /** Only handled in main when `NODE_ENV=test` (see pipeline orchestration IPC). */
+    e2ePushQueueSnapshot: (snapshot: PipelineQueueSnapshot) =>
+      ipcRenderer.invoke(PIPELINE_IPC_CHANNELS.e2ePushQueueSnapshot, snapshot) as Promise<{ ok: true }>,
   },
   _logToMain: (msg: string) => ipcRenderer.send("renderer:log", msg),
 };
