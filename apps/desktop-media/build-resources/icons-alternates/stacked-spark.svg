@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Stacked frames with spark alternate icon concept">
+  <rect width="512" height="512" rx="96" fill="#0c1222"/>
+  <rect x="140" y="140" width="220" height="160" rx="12" fill="#1e293b" opacity="0.85"/>
+  <rect x="112" y="180" width="220" height="160" rx="12" fill="#334155"/>
+  <rect x="84" y="220" width="220" height="160" rx="12" fill="#475569" stroke="#38bdf8" stroke-width="6"/>
+  <path d="M360 128 L372 168 L412 168 L380 194 L392 234 L360 208 L328 234 L340 194 L308 168 L348 168 Z" fill="#fbbf24"/>
+</svg>

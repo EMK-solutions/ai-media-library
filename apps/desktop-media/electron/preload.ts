@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS, type DesktopApi } from "../src/shared/ipc";
+import {
+  IPC_CHANNELS,
+  type AppUpdateUiEvent,
+  type DesktopApi,
+} from "../src/shared/ipc";
 import { PIPELINE_IPC_CHANNELS } from "../src/shared/pipeline-ipc";
 import type { PipelineQueueSnapshot } from "../src/shared/pipeline-types";
 
@@ -476,6 +480,22 @@ const api: DesktopApi = {
     /** Only handled in main when `NODE_ENV=test` (see pipeline orchestration IPC). */
     e2ePushQueueSnapshot: (snapshot: PipelineQueueSnapshot) =>
       ipcRenderer.invoke(PIPELINE_IPC_CHANNELS.e2ePushQueueSnapshot, snapshot) as Promise<{ ok: true }>,
+  },
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
+  quitAndInstallPendingUpdate: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.quitAndInstallUpdate),
+  getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.getAppVersion),
+  onAppUpdateUiEvent: (listener: (event: AppUpdateUiEvent) => void) => {
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      payload: AppUpdateUiEvent,
+    ) => {
+      listener(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.appUpdateUiEvent, wrapped);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.appUpdateUiEvent, wrapped);
+    };
   },
   _logToMain: (msg: string) => ipcRenderer.send("renderer:log", msg),
 };

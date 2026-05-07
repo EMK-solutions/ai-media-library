@@ -1,5 +1,6 @@
 import path from "node:path";
 import { BrowserWindow } from "electron";
+import { APP_DISPLAY_NAME } from "./app-links";
 import { resetFrameSendErrorFlag } from "./ipc/progress-emitters";
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
@@ -24,7 +25,10 @@ function loadRenderer(window: BrowserWindow): void {
 }
 
 export function createMainWindow(): BrowserWindow {
+  const iconPath = path.resolve(__dirname, "../build-resources/app-icon.png");
   const window = new BrowserWindow({
+    title: APP_DISPLAY_NAME,
+    icon: iconPath,
     width: 1400,
     height: 900,
     minWidth: 1024,

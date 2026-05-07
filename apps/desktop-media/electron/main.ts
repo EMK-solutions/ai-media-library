@@ -1,4 +1,11 @@
 import { app, BrowserWindow, ipcMain } from "electron";
+import { APP_DISPLAY_NAME } from "./app-links";
+import { installApplicationMenu } from "./application-menu";
+import {
+  configureAutoUpdater,
+  registerAppUpdaterIpc,
+  scheduleStartupUpdateCheck,
+} from "./app-updater";
 import { setDatabaseProvider } from "./face-rotation-check";
 import { getDesktopDatabase, initDesktopDatabase } from "./db/client";
 import { clearAllInProgressFlags } from "./db/folder-analysis-status";
@@ -49,8 +56,11 @@ if (configuredUserDataPath) {
 }
 app.setPath("sessionData", resolveSessionDataPath(app));
 
+app.setName(APP_DISPLAY_NAME);
+
 function registerAllIpcHandlers(): void {
   registerAllPipelineDefinitions();
+  registerAppUpdaterIpc();
   registerFsHandlers();
   registerPhotoAnalysisHandlers();
   registerFaceDetectionHandlers();
@@ -150,7 +160,10 @@ app.whenReady().then(async () => {
   });
 
   registerAllIpcHandlers();
+  configureAutoUpdater();
   createMainWindow();
+  installApplicationMenu();
+  scheduleStartupUpdateCheck();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
