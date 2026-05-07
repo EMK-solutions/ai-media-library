@@ -36,7 +36,7 @@ export function SummaryActionCard({
   const hasActions = Boolean(onInfoClick || onViewClick || actionSlot);
 
   return (
-    <section className={cn("min-w-[450px] flex-1 rounded-xl border bg-primary/5 p-4 shadow-sm", toneBorder(tone))}>
+    <section className={cn("min-w-[560px] flex-1 rounded-xl border bg-primary/5 p-4 shadow-sm", toneBorder(tone))}>
       <div
         className={cn(
           "grid grid-rows-[auto_auto] gap-x-4 gap-y-3",

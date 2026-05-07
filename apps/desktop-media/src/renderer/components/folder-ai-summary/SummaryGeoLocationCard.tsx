@@ -96,7 +96,7 @@ export function SummaryGeoLocationCard({
         ? "Geo-location is waiting in queue"
         : "Run geo-location extraction";
   return (
-    <section className={cn("min-w-[450px] flex-1 rounded-xl border bg-card p-4 shadow-sm", toneBorder(tone))}>
+    <section className={cn("min-w-[560px] flex-1 rounded-xl border bg-card p-4 shadow-sm", toneBorder(tone))}>
       <div className="grid grid-cols-[86px_minmax(0,1fr)_40px] grid-rows-[auto_auto] gap-x-4 gap-y-3">
         <div className="flex min-h-14 items-center justify-center">
           <MapPin size={56} className={toneText(tone)} aria-hidden="true" />
