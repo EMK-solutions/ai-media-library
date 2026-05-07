@@ -205,7 +205,22 @@ export const IPC_CHANNELS = {
   getGeocoderCacheStatus: "media:get-geocoder-cache-status",
   initGeocoder: "media:init-geocoder",
   geocoderInitProgress: "media:geocoder-init-progress",
+  /** Push: auto-update state for optional renderer UI (discriminated by `type`). */
+  appUpdateUiEvent: "app:update-ui-event",
+  checkForUpdates: "app:check-for-updates",
+  quitAndInstallUpdate: "app:quit-and-install-update",
+  getAppVersion: "app:get-version",
 } as const;
+
+/** Push payload from main → renderer for optional update UI (toast, restart prompt). */
+export type AppUpdateUiEvent =
+  | { type: "available"; version: string }
+  | { type: "downloaded"; version: string }
+  | { type: "error"; message: string };
+
+export type CheckForUpdatesResult =
+  | { ok: true; message?: string }
+  | { ok: false; error: string };
 
 export interface AiInferenceGpuOption {
   id: string;
@@ -2337,5 +2352,13 @@ export interface DesktopApi {
    * standalone pipelines through a single FIFO scheduler.
    */
   pipelines: PipelineDesktopApi;
+  /** Manual update check; dev builds open the latest releases page in the browser. */
+  checkForUpdates: () => Promise<CheckForUpdatesResult>;
+  /** Install a downloaded update and restart (no-op if not packaged / no pending update). */
+  quitAndInstallPendingUpdate: () => Promise<void>;
+  /** Current semver from packaged app or dev package.json resolution. */
+  getAppVersion: () => Promise<string>;
+  /** Subscribe to auto-update lifecycle for optional in-app notifications. */
+  onAppUpdateUiEvent: (listener: (event: AppUpdateUiEvent) => void) => () => void;
   _logToMain: (msg: string) => void;
 }

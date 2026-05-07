@@ -1,13 +1,22 @@
 # Windows packaging (Phase 1). See AGENTS.md / root docs for release process.
 # https://www.electron.build/configuration/configuration
 
-appId: com.emk.desktopmedia
-productName: EMK Desktop Media
+appId: com.emk.aimedialibrary
+productName: AI Media Library
 copyright: Copyright © EMK contributors
+
+# GitHub Releases provider for electron-updater (requires published `latest.yml` + installer per release).
+publish:
+  provider: github
+  owner: EMK-solutions
+  repo: ai-media-library
 
 directories:
   output: release/artifacts
   buildResources: build-resources
+
+# PNG/ICO; electron-builder generates platform icons from this when needed.
+icon: build-resources/app-icon.png
 
 # Native addons are rebuilt for Electron in `pnpm run rebuild:native` before packaging.
 npmRebuild: false
