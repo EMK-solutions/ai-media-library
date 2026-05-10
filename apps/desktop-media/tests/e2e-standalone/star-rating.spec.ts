@@ -1,16 +1,18 @@
-import { expect, test } from "./fixtures/app-fixture";
-import { clickSidebarLibraryRoot } from "./fixtures/desktop-sidebar";
-import { mockFolderDialog } from "./fixtures/mock-dialog";
+import { expect, test } from "../e2e/fixtures/app-fixture";
+import { clickSidebarLibraryRoot } from "../e2e/fixtures/desktop-sidebar";
+import { mockFolderDialog } from "../e2e/fixtures/mock-dialog";
 import {
   getFileMtimeMs,
   readWindowsExifRatingTags,
   shutdownExiftoolForE2E,
   waitUntilFileShowsStarRatingAndNewerMtime,
-} from "./fixtures/read-embedded-star-rating";
-import { createTestImageFolder, removeTestImageFolder } from "./fixtures/test-images";
+  warmupExiftoolForE2E,
+} from "../e2e/fixtures/read-embedded-star-rating";
+import { setWriteEmbeddedMetadataOnUserEdit } from "../e2e/fixtures/folder-scanning-e2e-helpers";
+import { createTestImageFolder, removeTestImageFolder } from "../e2e/fixtures/test-images";
 
 /** Embedded + ExifTool may need two writes in one test; allow generous headroom on cold runners. */
-test.describe.configure({ mode: "serial", timeout: 300_000 });
+test.describe.configure({ mode: "serial", timeout: 600_000 });
 
 /**
  * Use the exact path strings Electron uses when listing files so `source_path`
@@ -50,32 +52,6 @@ async function waitForCatalogItem(
     .not.toBeNull();
 }
 
-async function enableWriteEmbeddedMetadata(mainWindow: import("@playwright/test").Page): Promise<void> {
-  await mainWindow.evaluate(async () => {
-    const s = await window.desktopApi.getSettings();
-    await window.desktopApi.saveSettings({
-      ...s,
-      folderScanning: {
-        ...s.folderScanning,
-        writeEmbeddedMetadataOnUserEdit: true,
-      },
-    });
-  });
-}
-
-async function disableWriteEmbeddedMetadata(mainWindow: import("@playwright/test").Page): Promise<void> {
-  await mainWindow.evaluate(async () => {
-    const s = await window.desktopApi.getSettings();
-    await window.desktopApi.saveSettings({
-      ...s,
-      folderScanning: {
-        ...s.folderScanning,
-        writeEmbeddedMetadataOnUserEdit: false,
-      },
-    });
-  });
-}
-
 async function addLibraryAndScan(
   electronApp: import("@playwright/test").ElectronApplication,
   mainWindow: import("@playwright/test").Page,
@@ -90,7 +66,51 @@ async function addLibraryAndScan(
   }, folderPath);
 }
 
+/**
+ * Set rating via IPC, then wait until disk reflects it. If the resident `exiftool-vendored`
+ * process silently no-ops (rare on cold Windows runners with `ignoreMinorErrors`), the wait
+ * helper re-issues the IPC every ~15 s as a self-heal. Diagnostic state is included in
+ * the failure message if the wait still times out.
+ */
+async function setStarRatingAndWaitEmbedded(
+  mainWindow: import("@playwright/test").Page,
+  imgPath: string,
+  stars: number,
+  mtimeBaseline: number,
+): Promise<void> {
+  const invoke = async (): Promise<void> => {
+    const result = await mainWindow.evaluate(
+      async ({ path: p, stars: s }: { path: string; stars: number }) =>
+        window.desktopApi.setMediaItemStarRating({ sourcePath: p, starRating: s }),
+      { path: imgPath, stars },
+    );
+    expect(result.success, `setMediaItemStarRating IPC failed: ${result.error ?? "unknown"}`).toBe(
+      true,
+    );
+    expect(
+      result.embeddedWrite?.attempted,
+      `Embedded write not attempted (skippedReason=${result.embeddedWrite?.skippedReason ?? "missing"}). ` +
+        `Did writeEmbeddedMetadataOnUserEdit get persisted before the IPC ran?\n` +
+        `--- settings-writes.log ---\n${result.embeddedWrite?.e2eWriteLog ?? "(none)"}`,
+    ).toBe(true);
+    expect(
+      result.embeddedWrite?.awaited,
+      `Embedded write not awaited; expected EMK_E2E_RUN_PIPELINES_UI=1 in main process.`,
+    ).toBe(true);
+  };
+  await invoke();
+  await waitUntilFileShowsStarRatingAndNewerMtime(imgPath, stars, mtimeBaseline, {
+    timeoutMs: 240_000,
+    rewriteIntervalMs: 15_000,
+    onStaleRewrite: invoke,
+  });
+}
+
 test.describe("Star rating", () => {
+  test.beforeAll(async () => {
+    await warmupExiftoolForE2E();
+  });
+
   test("setMediaItemStarRating with embedded write off updates catalog only", async ({
     electronApp,
     mainWindow,
@@ -101,7 +121,7 @@ test.describe("Star rating", () => {
 
       const resolvedPath = await electronImagePath(mainWindow, tempFolder, "test-photo-2.jpg");
       await waitForCatalogItem(mainWindow, resolvedPath);
-      await disableWriteEmbeddedMetadata(mainWindow);
+      await setWriteEmbeddedMetadataOnUserEdit(mainWindow, false, [tempFolder]);
 
       const result = await mainWindow.evaluate(async (p) => {
         return window.desktopApi.setMediaItemStarRating({ sourcePath: p, starRating: 5 });
@@ -125,7 +145,7 @@ test.describe("Star rating", () => {
       const imgPath = await electronImagePath(mainWindow, tempFolder, "test-photo-1.jpg");
       await waitForCatalogItem(mainWindow, imgPath);
       const mtimeBeforeEmbeddedWrites = getFileMtimeMs(imgPath);
-      await enableWriteEmbeddedMetadata(mainWindow);
+      await setWriteEmbeddedMetadataOnUserEdit(mainWindow, true, [tempFolder]);
 
       const result = await mainWindow.evaluate(async (p) => {
         return window.desktopApi.setMediaItemStarRating({ sourcePath: p, starRating: 4 });
@@ -133,6 +153,10 @@ test.describe("Star rating", () => {
 
       expect(result.success).toBe(true);
       expect(result.metadata?.starRating).toBe(4);
+      expect(
+        result.embeddedWrite,
+        `4-star embedded write should be attempted+awaited; got ${JSON.stringify(result.embeddedWrite)}`,
+      ).toMatchObject({ attempted: true, awaited: true });
 
       const starFromDbRoundTrip = await mainWindow.evaluate(async (p) => {
         const m = await window.desktopApi.getMediaItemsByPaths([p]);
@@ -143,12 +167,17 @@ test.describe("Star rating", () => {
       await waitUntilFileShowsStarRatingAndNewerMtime(imgPath, 4, mtimeBeforeEmbeddedWrites);
 
       const mtimeAfterFourStars = getFileMtimeMs(imgPath);
+      await setWriteEmbeddedMetadataOnUserEdit(mainWindow, true, [tempFolder]);
 
       const resultSecond = await mainWindow.evaluate(async (p) => {
         return window.desktopApi.setMediaItemStarRating({ sourcePath: p, starRating: 2 });
       }, imgPath);
       expect(resultSecond.success).toBe(true);
       expect(resultSecond.metadata?.starRating).toBe(2);
+      expect(
+        resultSecond.embeddedWrite,
+        `2-star embedded write should be attempted+awaited; got ${JSON.stringify(resultSecond.embeddedWrite)}`,
+      ).toMatchObject({ attempted: true, awaited: true });
 
       await waitUntilFileShowsStarRatingAndNewerMtime(imgPath, 2, mtimeAfterFourStars);
     } finally {
@@ -166,7 +195,7 @@ test.describe("Star rating", () => {
 
       const imgPath = await electronImagePath(mainWindow, tempFolder, "test-photo-1.jpg");
       await waitForCatalogItem(mainWindow, imgPath);
-      await enableWriteEmbeddedMetadata(mainWindow);
+      await setWriteEmbeddedMetadataOnUserEdit(mainWindow, true, [tempFolder]);
 
       let mtimeBaseline = getFileMtimeMs(imgPath);
 
@@ -179,15 +208,7 @@ test.describe("Star rating", () => {
       ];
 
       for (const step of steps) {
-        const result = await mainWindow.evaluate(
-          async ({ path: p, stars }) => {
-            return window.desktopApi.setMediaItemStarRating({ sourcePath: p, starRating: stars });
-          },
-          { path: imgPath, stars: step.stars },
-        );
-        expect(result.success).toBe(true);
-
-        await waitUntilFileShowsStarRatingAndNewerMtime(imgPath, step.stars, mtimeBaseline);
+        await setStarRatingAndWaitEmbedded(mainWindow, imgPath, step.stars, mtimeBaseline);
 
         const w = await readWindowsExifRatingTags(imgPath);
         expect(w.exifRating, `IFD0 Rating for ${step.stars} app stars`).toBe(step.ifd0Rating);
@@ -210,7 +231,7 @@ test.describe("Star rating", () => {
 
       const imgPath = await electronImagePath(mainWindow, uiFolder, "test-photo-1.jpg");
       await waitForCatalogItem(mainWindow, imgPath);
-      await enableWriteEmbeddedMetadata(mainWindow);
+      await setWriteEmbeddedMetadataOnUserEdit(mainWindow, true, [uiFolder]);
 
       const mtimeBeforeThreeStars = getFileMtimeMs(imgPath);
       await mainWindow.evaluate(async (p) => {
