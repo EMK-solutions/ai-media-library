@@ -50,6 +50,16 @@ async function setAutoPlayVideoOnSelection(
   const checkbox = mainWindow.getByLabel(autoPlayVideoOnSelectionLabel, { exact: true });
   await expect(checkbox).toBeVisible({ timeout: 10_000 });
   await checkbox.setChecked(enabled);
+  await expect
+    .poll(
+      async () =>
+        mainWindow.evaluate(async () => {
+          const settings = await window.desktopApi.getSettings();
+          return settings.mediaViewer.autoPlayVideoOnOpen;
+        }),
+      { timeout: 10_000 },
+    )
+    .toBe(enabled);
   await mainWindow.getByText("Folders", { exact: true }).click();
 }
 
