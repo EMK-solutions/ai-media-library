@@ -7,8 +7,25 @@ import {
 } from "../db/media-item-metadata";
 import { DEFAULT_LIBRARY_ID } from "../db/folder-analysis-status";
 import { refreshObservedStateForPaths } from "../db/file-identity";
+import { canonicalPathKeyForEmbeddedWriteQueue } from "../lib/embedded-write-path-key";
 import { writeStarRatingToMediaFile } from "../lib/write-star-rating-exiftool";
 import { readSettings } from "../storage";
+
+/** Serialize ExifTool writes per path so overlapping async writes cannot leave an older star rating on disk. */
+const embeddedStarWriteTailByPath = new Map<string, Promise<void>>();
+
+function enqueueEmbeddedStarWrite(sourcePath: string, starRating: number): Promise<void> {
+  const key = canonicalPathKeyForEmbeddedWriteQueue(sourcePath);
+  const prev = embeddedStarWriteTailByPath.get(key) ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(() => writeStarRatingToMediaFile(sourcePath, starRating));
+  embeddedStarWriteTailByPath.set(key, next);
+  void next.finally(() => {
+    if (embeddedStarWriteTailByPath.get(key) === next) {
+      embeddedStarWriteTailByPath.delete(key);
+    }
+  });
+  return next;
+}
 
 /**
  * After a background file-metadata write completes, push the refreshed catalog
@@ -61,32 +78,70 @@ export function registerMediaItemMutationHandlers(): void {
       const metadata = updated.metadata;
 
       const settings = await readSettings(app.getPath("userData"));
-      if (settings.folderScanning.writeEmbeddedMetadataOnUserEdit) {
-        // Fire-and-forget: write file metadata in background so the IPC returns
-        // instantly and the renderer can update the grid immediately.
-        void (async () => {
+      const e2eAwait = process.env.EMK_E2E_RUN_PIPELINES_UI === "1";
+      if (!settings.folderScanning.writeEmbeddedMetadataOnUserEdit) {
+        let writeLog: string | undefined;
+        if (e2eAwait) {
           try {
-            await writeStarRatingToMediaFile(sourcePath, starRating);
-            const refreshed = await refreshObservedStateForPaths([sourcePath], libraryId);
-            const observedState = refreshed[sourcePath];
-            await upsertMediaItemFromFilePath({
-              filePath: sourcePath,
-              libraryId,
-              observedState,
-              overrideStarRating: starRating,
-              trustedEmbeddedMetadataWrite: observedState?.strongHash == null,
-            });
-            notifyRendererMetadataRefresh(sourcePath, libraryId);
-          } catch (err) {
-            console.warn(
-              `[star-rating] background file write failed for ${sourcePath}:`,
-              err instanceof Error ? err.message : err,
-            );
+            const fs = await import("node:fs/promises");
+            const p = await import("node:path");
+            const logPath = p.join(app.getPath("userData"), "settings-writes.log");
+            writeLog = await fs.readFile(logPath, "utf-8");
+          } catch {
+            writeLog = "(no log)";
           }
-        })();
+        }
+        return {
+          success: true,
+          metadata,
+          embeddedWrite: {
+            attempted: false,
+            skippedReason: "off",
+            awaited: false,
+            ...(writeLog ? { e2eWriteLog: writeLog } : {}),
+          },
+        };
       }
 
-      return { success: true, metadata };
+      const runEmbeddedWrite = async (): Promise<void> => {
+        try {
+          await enqueueEmbeddedStarWrite(sourcePath, starRating);
+          const refreshed = await refreshObservedStateForPaths([sourcePath], libraryId);
+          const observedState = refreshed[sourcePath];
+          await upsertMediaItemFromFilePath({
+            filePath: sourcePath,
+            libraryId,
+            observedState,
+            overrideStarRating: starRating,
+            trustedEmbeddedMetadataWrite: observedState?.strongHash == null,
+          });
+          notifyRendererMetadataRefresh(sourcePath, libraryId);
+        } catch (err) {
+          console.warn(
+            `[star-rating] background file write failed for ${sourcePath}:`,
+            err instanceof Error ? err.message : err,
+          );
+          if (e2eAwait) {
+            throw err;
+          }
+        }
+      };
+      // In Playwright, await so rapid successive rating changes cannot race ExifTool.
+      // In production, keep fire-and-forget so the grid updates immediately.
+      if (e2eAwait) {
+        await runEmbeddedWrite();
+        return {
+          success: true,
+          metadata,
+          embeddedWrite: { attempted: true, awaited: true },
+        };
+      }
+      void runEmbeddedWrite();
+      return {
+        success: true,
+        metadata,
+        embeddedWrite: { attempted: true, awaited: false },
+      };
     },
   );
 }

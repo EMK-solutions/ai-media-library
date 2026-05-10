@@ -30,9 +30,11 @@ async function openViewerFromGridByTitle(mainWindow: import("@playwright/test").
 
 async function currentViewerVideoPaused(mainWindow: import("@playwright/test").Page): Promise<boolean | null> {
   return mainWindow.evaluate(() => {
-    const video = document.querySelector(".media-swiper-theme .swiper-slide-active video") as
-      | HTMLVideoElement
-      | null;
+    // `[controls]` pins to the main viewer's slide video; the thumb rail's active <video>
+    // also lives under `.swiper-slide-active` but is muted/aria-hidden without controls.
+    const video = document.querySelector(
+      ".media-swiper-theme .swiper-slide-active video[controls]",
+    ) as HTMLVideoElement | null;
     return video ? video.paused : null;
   });
 }
@@ -50,6 +52,16 @@ async function setAutoPlayVideoOnSelection(
   const checkbox = mainWindow.getByLabel(autoPlayVideoOnSelectionLabel, { exact: true });
   await expect(checkbox).toBeVisible({ timeout: 10_000 });
   await checkbox.setChecked(enabled);
+  await expect
+    .poll(
+      async () =>
+        mainWindow.evaluate(async () => {
+          const settings = await window.desktopApi.getSettings();
+          return settings.mediaViewer.autoPlayVideoOnOpen;
+        }),
+      { timeout: 10_000 },
+    )
+    .toBe(enabled);
   await mainWindow.getByText("Folders", { exact: true }).click();
 }
 
@@ -157,6 +169,16 @@ test.describe("Viewer mixed media", () => {
 
     await setAutoPlayVideoOnSelection(mainWindow, false);
     await openE2eMixedMediaLibrary(electronApp, mainWindow);
+    await expect
+      .poll(
+        async () =>
+          mainWindow.evaluate(async () => {
+            const settings = await window.desktopApi.getSettings();
+            return settings.mediaViewer.autoPlayVideoOnOpen;
+          }),
+        { timeout: 15_000 },
+      )
+      .toBe(false);
     await switchToListView(mainWindow);
 
     const { imageNames, videoNames } = await readMixedMediaNames(mainWindow);
@@ -172,7 +194,9 @@ test.describe("Viewer mixed media", () => {
       const paused = await currentViewerVideoPaused(mainWindow);
       if (paused !== null) {
         reachedVideo = true;
-        expect(paused).toBe(true);
+        await expect
+          .poll(async () => currentViewerVideoPaused(mainWindow), { timeout: 25_000 })
+          .toBe(true);
         break;
       }
     }
