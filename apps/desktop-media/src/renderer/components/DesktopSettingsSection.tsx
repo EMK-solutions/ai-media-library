@@ -50,6 +50,9 @@ import {
   PHOTO_ANALYSIS_PROMPT_VERSION,
 } from "../../shared/photo-analysis-prompt";
 
+/** Set to `true` to show the Face landmark refinement toggle again in Settings. */
+const SHOW_FACE_LANDMARK_REFINEMENT_UI = false;
+
 interface DesktopSettingsSectionProps {
   faceDetectionSettings: FaceDetectionSettings;
   wrongImageRotationDetectionSettings: WrongImageRotationDetectionSettings;
@@ -131,9 +134,7 @@ const UI_TEXT = {
   databaseLocation: "Application data files",
   databaseFolder: "Database folder",
   databaseFile: "Database file",
-  modelsPath: "AI models folder (root)",
-  onnxModelsPath: "ONNX weights folder (face detection & aux)",
-  huggingfaceModelsPath: "Hugging Face cache (semantic embedding models)",
+  modelsPath: "AI models folder",
   geonamesPath: "Geo-location database folder (GPS coordinates decoding to country, area, city)",
   cachePath: "Disposable cache folder (sessions and other non-model cache)",
   notAvailable: "Not available",
@@ -1117,6 +1118,34 @@ export function DesktopSettingsSection({
               </p>
             </div>
           </div>
+          <SettingsCheckboxField
+            title="Keep tagged faces even when the new detector misses them"
+            description="Keeps previously tagged face boxes even if a newly selected detector no longer finds them, preventing named people from disappearing after a re-run."
+            checked={faceDetectionSettings.keepUnmatchedTaggedFaces}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            onChange={(next) =>
+              onFaceDetectionSettingChange("keepUnmatchedTaggedFaces", next)
+            }
+          />
+          <AuxModelToggleRow
+            title="Face age & gender estimation"
+            kind="age-gender"
+            description="Stores approximate age and gender estimates for each detected face using a lightweight local ONNX classifier."
+            enabled={faceDetectionSettings.faceAgeGenderDetection.enabled}
+            modelId={faceDetectionSettings.faceAgeGenderDetection.model}
+            onEnabledChange={(enabled) =>
+              onFaceDetectionSettingChange("faceAgeGenderDetection", {
+                ...faceDetectionSettings.faceAgeGenderDetection,
+                enabled,
+              })
+            }
+            onModelChange={(next) =>
+              onFaceDetectionSettingChange("faceAgeGenderDetection", {
+                ...faceDetectionSettings.faceAgeGenderDetection,
+                model: next as FaceAgeGenderModelId,
+              })
+            }
+          />
           <SettingsNumberField
             title="Minimum confidence threshold"
             description="Filters out detected faces below this confidence score, which reduces false positives from patterns that only look like faces."
@@ -1193,54 +1222,27 @@ export function DesktopSettingsSection({
               )
             }
           />
-          <SettingsCheckboxField
-            title="Keep tagged faces even when the new detector misses them"
-            description="Keeps previously tagged face boxes even if a newly selected detector no longer finds them, preventing named people from disappearing after a re-run."
-            checked={faceDetectionSettings.keepUnmatchedTaggedFaces}
-            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
-            onChange={(next) =>
-              onFaceDetectionSettingChange("keepUnmatchedTaggedFaces", next)
-            }
-          />
-
-          <AuxModelToggleRow
-            title="Face landmark refinement"
-            kind="landmarks"
-            description="Adds precise eye, nose, and mouth landmarks on top of YOLO detections for better face alignment, similarity matching, and rotation estimation."
-            enabled={faceDetectionSettings.faceLandmarkRefinement.enabled}
-            modelId={faceDetectionSettings.faceLandmarkRefinement.model}
-            onEnabledChange={(enabled) =>
-              onFaceDetectionSettingChange("faceLandmarkRefinement", {
-                ...faceDetectionSettings.faceLandmarkRefinement,
-                enabled,
-              })
-            }
-            onModelChange={(next) =>
-              onFaceDetectionSettingChange("faceLandmarkRefinement", {
-                ...faceDetectionSettings.faceLandmarkRefinement,
-                model: next as FaceLandmarkModelId,
-              })
-            }
-          />
-          <AuxModelToggleRow
-            title="Face age & gender estimation"
-            kind="age-gender"
-            description="Stores approximate age and gender estimates for each detected face using a lightweight local ONNX classifier."
-            enabled={faceDetectionSettings.faceAgeGenderDetection.enabled}
-            modelId={faceDetectionSettings.faceAgeGenderDetection.model}
-            onEnabledChange={(enabled) =>
-              onFaceDetectionSettingChange("faceAgeGenderDetection", {
-                ...faceDetectionSettings.faceAgeGenderDetection,
-                enabled,
-              })
-            }
-            onModelChange={(next) =>
-              onFaceDetectionSettingChange("faceAgeGenderDetection", {
-                ...faceDetectionSettings.faceAgeGenderDetection,
-                model: next as FaceAgeGenderModelId,
-              })
-            }
-          />
+          {SHOW_FACE_LANDMARK_REFINEMENT_UI ? (
+            <AuxModelToggleRow
+              title="Face landmark refinement"
+              kind="landmarks"
+              description="Adds precise eye, nose, and mouth landmarks on top of YOLO detections for better face alignment, similarity matching, and rotation estimation."
+              enabled={faceDetectionSettings.faceLandmarkRefinement.enabled}
+              modelId={faceDetectionSettings.faceLandmarkRefinement.model}
+              onEnabledChange={(enabled) =>
+                onFaceDetectionSettingChange("faceLandmarkRefinement", {
+                  ...faceDetectionSettings.faceLandmarkRefinement,
+                  enabled,
+                })
+              }
+              onModelChange={(next) =>
+                onFaceDetectionSettingChange("faceLandmarkRefinement", {
+                  ...faceDetectionSettings.faceLandmarkRefinement,
+                  model: next as FaceLandmarkModelId,
+                })
+              }
+            />
+          ) : null}
 
           <div className="pt-1">
             <button
@@ -1636,28 +1638,6 @@ export function DesktopSettingsSection({
             <p className="m-0 text-sm text-muted-foreground">{UI_TEXT.modelsPath}</p>
             <p className="mt-1 break-all font-mono text-sm text-foreground">
               {databaseLocation?.modelsPath ?? UI_TEXT.notAvailable}
-            </p>
-          </div>
-          <div
-            className={cn(
-              settingsCustomOptionSurfaceClass("accent-stripe"),
-              "border-l-primary/70",
-            )}
-          >
-            <p className="m-0 text-sm text-muted-foreground">{UI_TEXT.onnxModelsPath}</p>
-            <p className="mt-1 break-all font-mono text-sm text-foreground">
-              {databaseLocation?.onnxModelsPath ?? UI_TEXT.notAvailable}
-            </p>
-          </div>
-          <div
-            className={cn(
-              settingsCustomOptionSurfaceClass("accent-stripe"),
-              "border-l-primary/70",
-            )}
-          >
-            <p className="m-0 text-sm text-muted-foreground">{UI_TEXT.huggingfaceModelsPath}</p>
-            <p className="mt-1 break-all font-mono text-sm text-foreground">
-              {databaseLocation?.huggingfaceModelsPath ?? UI_TEXT.notAvailable}
             </p>
           </div>
           <div
