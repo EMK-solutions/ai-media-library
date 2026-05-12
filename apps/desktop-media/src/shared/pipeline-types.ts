@@ -35,7 +35,8 @@ export type PipelineId =
   | "semantic-index"
   | "desc-embedding-backfill"
   | "path-llm-analysis"
-  | "similar-untagged-counts";
+  | "similar-untagged-counts"
+  | "folder-duplicate-scan";
 
 /**
  * Lifecycle state of a single job inside a bundle.

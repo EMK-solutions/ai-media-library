@@ -37,6 +37,7 @@ interface DesktopAppSidebarProps {
     handleSelectFolder: (folderPath: string) => Promise<void>;
     handleRemoveLibrary: (rootPath: string) => void;
     handleOpenFolderAiSummary: (folderPath: string) => void;
+    handleCheckDuplicateFiles?: (folderPath: string, recursive: boolean) => void;
   };
 }
 
@@ -111,6 +112,7 @@ export function DesktopAppSidebar({
                 handleSelectFolder={folderTree.handleSelectFolder}
                 handleRemoveLibrary={folderTree.handleRemoveLibrary}
                 handleOpenFolderAiSummary={folderTree.handleOpenFolderAiSummary}
+                handleCheckDuplicateFiles={folderTree.handleCheckDuplicateFiles}
               />
             ),
           },

@@ -5,7 +5,7 @@ import {
   type ThumbnailQuickFilterState,
 } from "@emk/media-metadata-core";
 import type { SmartAlbumRootKind, SmartAlbumYearAreaSubView } from "@emk/shared-contracts";
-import type { DesktopMediaItemMetadata } from "../shared/ipc";
+import type { DesktopMediaItemMetadata, FolderDuplicateScanResultPayload } from "../shared/ipc";
 import { supportsThinkingMode } from "../shared/photo-analysis-prompt";
 import { DesktopAppMain } from "./components/DesktopAppMain";
 import type { SimilarImagesSession } from "./components/similar-images/desktop-similar-images-workspace";
@@ -27,12 +27,14 @@ import {
   useDesktopSettingsSyncFromMain,
 } from "./hooks/useDesktopIpcBindings";
 import { usePipelineQueueBinding } from "./hooks/use-pipeline-queue-binding";
+import { useFolderDuplicateScanCompletion } from "./hooks/use-folder-duplicate-scan-completion";
 import { useFilteredMediaItems } from "./hooks/use-filtered-media-items";
 import { lookupMediaMetadataByItemId } from "./lib/media-metadata-lookup";
 import { useAnalysisEta, useFaceDetectionEta, useMetadataProgress, useSemanticIndexEta } from "./hooks/use-eta-tracking";
 import { UI_TEXT } from "./lib/ui-text";
 import { cn } from "./lib/cn";
 import { useDesktopStore, useDesktopStoreApi } from "./stores/desktop-store";
+import { enqueueFolderDuplicateScan } from "./actions/duplicate-files-actions";
 import type { AlbumWorkspaceMode, MainPaneViewMode, RotationReviewScope, SidebarSectionId } from "./types/app-types";
 import type { DesktopViewerItem } from "./types/viewer-types";
 
@@ -122,6 +124,10 @@ export function App(): ReactElement {
   const [recentAlbumsHydrated, setRecentAlbumsHydrated] = useState(false);
   const [similarImagesSession, setSimilarImagesSession] = useState<SimilarImagesSession | null>(null);
   const [similarImagesPage, setSimilarImagesPage] = useState(0);
+  const [duplicateFilesSession, setDuplicateFilesSession] = useState<FolderDuplicateScanResultPayload | null>(
+    null,
+  );
+  const [duplicateFilesPage, setDuplicateFilesPage] = useState(0);
 
   const {
     actionsMenuOpen,
@@ -283,9 +289,22 @@ export function App(): ReactElement {
     setSimilarImagesPage(0);
   }, []);
 
+  const closeDuplicateFilesView = useCallback((): void => {
+    setDuplicateFilesSession(null);
+    setDuplicateFilesPage(0);
+  }, []);
+
+  const onDuplicateScanResult = useCallback((payload: FolderDuplicateScanResultPayload) => {
+    setDuplicateFilesSession(payload);
+    setDuplicateFilesPage(0);
+  }, []);
+
+  useFolderDuplicateScanCompletion(onDuplicateScanResult);
+
   const handleSidebarSectionToggle = (sectionId: string): void => {
     if (sectionId === "folders" || sectionId === "albums" || sectionId === "people" || sectionId === "settings") {
       closeSimilarImagesView();
+      closeDuplicateFilesView();
       if (sectionId === "albums" && activeSidebarSection !== "albums") {
         setAlbumSearchControlsOpen(false);
       }
@@ -305,6 +324,7 @@ export function App(): ReactElement {
 
   const openAlbumsSection = (): void => {
     closeSimilarImagesView();
+    closeDuplicateFilesView();
     setActiveSidebarSection("albums");
     setExpandedSidebarSection("albums");
     if (sidebarCollapsed) {
@@ -364,9 +384,10 @@ export function App(): ReactElement {
   }, []);
 
   const handleFindSimilar = useCallback((sourcePath: string): void => {
+    closeDuplicateFilesView();
     setSimilarImagesSession({ sourcePath, minSimilarity: 0.9 });
     setSimilarImagesPage(0);
-  }, []);
+  }, [closeDuplicateFilesView]);
 
   const handleSimilarImagesMinSimilarityChange = useCallback((minSimilarity: number): void => {
     setSimilarImagesSession((session) => (session ? { ...session, minSimilarity } : null));
@@ -408,11 +429,19 @@ export function App(): ReactElement {
           ...folderTree,
           handleSelectFolder: async (folderPath) => {
             closeSimilarImagesView();
+            closeDuplicateFilesView();
             await folderTree.handleSelectFolder(folderPath);
           },
           handleOpenFolderAiSummary: (folderPath) => {
             closeSimilarImagesView();
             folderTree.handleOpenFolderAiSummary(folderPath);
+          },
+          handleCheckDuplicateFiles: (folderPath, recursive) => {
+            void enqueueFolderDuplicateScan({ folderPath, recursive }).then((result) => {
+              if (!result.ok) {
+                window.desktopApi._logToMain(`[duplicate-scan] ${result.error}`);
+              }
+            });
           },
         }}
       />
@@ -494,6 +523,10 @@ export function App(): ReactElement {
         onCloseSimilarImages={closeSimilarImagesView}
         onSimilarImagesMinSimilarityChange={handleSimilarImagesMinSimilarityChange}
         onFindSimilar={handleFindSimilar}
+        duplicateFilesSession={duplicateFilesSession}
+        duplicateFilesPage={duplicateFilesPage}
+        onDuplicateFilesPageChange={setDuplicateFilesPage}
+        onCloseDuplicateFiles={closeDuplicateFilesView}
       />
 
       <MediaSwiperViewer

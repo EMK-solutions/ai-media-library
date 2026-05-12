@@ -2,8 +2,10 @@ import type { Dispatch, ReactElement, RefObject, SetStateAction } from "react";
 import type { ImageEditSuggestionsItem } from "@emk/media-viewer";
 import type { SemanticSearchResult } from "@emk/media-store";
 import type { SmartAlbumRootKind, SmartAlbumYearAreaSubView } from "@emk/shared-contracts";
+import type { FolderDuplicateScanResultPayload } from "../../shared/ipc";
 import type { ThumbnailQuickFilterState } from "@emk/media-metadata-core";
 import { DesktopSimilarImagesWorkspace, type SimilarImagesSession } from "./similar-images/desktop-similar-images-workspace";
+import { DesktopDuplicateFilesWorkspace } from "./duplicate-files/desktop-duplicate-files-workspace";
 import { DesktopMainToolbar } from "./DesktopMainToolbar";
 import { DesktopMediaWorkspace } from "./DesktopMediaWorkspace";
 import { DesktopAlbumsWorkspace } from "./DesktopAlbumsWorkspace";
@@ -108,6 +110,10 @@ interface DesktopAppMainProps {
   onCloseSimilarImages: () => void;
   onSimilarImagesMinSimilarityChange: (minSimilarity: number) => void;
   onFindSimilar: (filePath: string) => void;
+  duplicateFilesSession: FolderDuplicateScanResultPayload | null;
+  duplicateFilesPage: number;
+  onDuplicateFilesPageChange: Dispatch<SetStateAction<number>>;
+  onCloseDuplicateFiles: () => void;
 }
 
 export function DesktopAppMain({
@@ -187,10 +193,24 @@ export function DesktopAppMain({
   onCloseSimilarImages,
   onSimilarImagesMinSimilarityChange,
   onFindSimilar,
+  duplicateFilesSession,
+  duplicateFilesPage,
+  onDuplicateFilesPageChange,
+  onCloseDuplicateFiles,
 }: DesktopAppMainProps): ReactElement {
   return (
     <main className="main-panel relative flex min-h-0 min-w-0 flex-col overflow-hidden">
-      {similarImagesSession ? (
+      {/* Duplicate-files view takes precedence when both overlap (latest workflow wins). */}
+      {duplicateFilesSession ? (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <DesktopDuplicateFilesWorkspace
+            payload={duplicateFilesSession}
+            currentPage={duplicateFilesPage}
+            onPageChange={onDuplicateFilesPageChange}
+            onClose={onCloseDuplicateFiles}
+          />
+        </div>
+      ) : similarImagesSession ? (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <DesktopSimilarImagesWorkspace
             store={store}

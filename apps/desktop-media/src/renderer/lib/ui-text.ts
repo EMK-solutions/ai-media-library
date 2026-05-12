@@ -43,6 +43,7 @@ export const UI_TEXT = {
   photoAIAnalysis: "Image AI analysis",
   imageEditSuggestions: "Image edit suggestions",
   scanForFileChanges: "Scan for file changes",
+  checkDuplicateFiles: "Check duplicate files",
   folderAiAnalysisSummary: "Folder AI analysis summary",
   folderAiSummaryTitle: "Folder AI analysis summary",
   folderAiSummaryFolderTitle: "Folder analysis summary",
