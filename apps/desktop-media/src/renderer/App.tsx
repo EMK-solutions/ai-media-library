@@ -37,7 +37,14 @@ import { UI_TEXT } from "./lib/ui-text";
 import { cn } from "./lib/cn";
 import { useDesktopStore, useDesktopStoreApi } from "./stores/desktop-store";
 import { enqueueFolderDuplicateScan } from "./actions/duplicate-files-actions";
-import type { AlbumWorkspaceMode, MainPaneViewMode, RotationReviewScope, SidebarSectionId } from "./types/app-types";
+import type {
+  AlbumWorkspaceMode,
+  ExpandedSidebarSectionId,
+  InsightsSidebarSubSection,
+  MainPaneViewMode,
+  PrimarySidebarSectionId,
+  RotationReviewScope,
+} from "./types/app-types";
 import type { DesktopViewerItem } from "./types/viewer-types";
 
 const RECENT_ALBUM_IDS_STORAGE_KEY = "desktop-media.recentAlbumIds.v1";
@@ -131,8 +138,8 @@ export function App(): ReactElement {
   const semanticIndexEta = useSemanticIndexEta();
 
   const [progressPanelCollapsed, setProgressPanelCollapsed] = useState(false);
-  const [activeSidebarSection, setActiveSidebarSection] = useState<SidebarSectionId>("folders");
-  const [expandedSidebarSection, setExpandedSidebarSection] = useState<SidebarSectionId | null>("folders");
+  const [primarySidebarSection, setPrimarySidebarSection] = useState<PrimarySidebarSectionId>("folders");
+  const [expandedSidebarSection, setExpandedSidebarSection] = useState<ExpandedSidebarSectionId | null>("folders");
   const [mainPaneViewMode, setMainPaneViewMode] = useState<MainPaneViewMode>("media");
   const mainPaneReturnTargetRef = useRef<MainPaneViewMode>("media");
   const [rotationReviewScope, setRotationReviewScope] = useState<RotationReviewScope | null>(null);
@@ -147,6 +154,12 @@ export function App(): ReactElement {
     null,
   );
   const [duplicateFilesPage, setDuplicateFilesPage] = useState(0);
+  const [insightsSubSection, setInsightsSubSection] = useState<InsightsSidebarSubSection | null>(null);
+  const [insightsDuplicateFilesHubOpen, setInsightsDuplicateFilesHubOpen] = useState(false);
+  const [insightsFolderAnalysisHubOpen, setInsightsFolderAnalysisHubOpen] = useState(false);
+  const [folderAiSummaryPathOverride, setFolderAiSummaryPathOverride] = useState<string | null>(null);
+  const folderAiSummaryOpenedFromInsightsRef = useRef(false);
+  const duplicateScanLaunchedFromInsightsRef = useRef(false);
 
   const {
     actionsMenuOpen,
@@ -336,7 +349,17 @@ export function App(): ReactElement {
   const closeDuplicateFilesView = useCallback((): void => {
     setDuplicateFilesSession(null);
     setDuplicateFilesPage(0);
+    duplicateScanLaunchedFromInsightsRef.current = false;
   }, []);
+
+  const handleCloseDuplicateFilesWorkspace = useCallback((): void => {
+    const fromInsights = duplicateScanLaunchedFromInsightsRef.current;
+    closeDuplicateFilesView();
+    if (fromInsights) {
+      setInsightsSubSection("duplicate-files");
+      setInsightsDuplicateFilesHubOpen(true);
+    }
+  }, [closeDuplicateFilesView]);
 
   const onDuplicateScanResult = useCallback((payload: FolderDuplicateScanResultPayload) => {
     setDuplicateFilesSession(payload);
@@ -351,14 +374,134 @@ export function App(): ReactElement {
 
   useFolderDuplicateScanCompletion(onDuplicateScanResult);
 
+  const resetInsightsFlow = useCallback((): void => {
+    setInsightsSubSection(null);
+    setInsightsDuplicateFilesHubOpen(false);
+    setInsightsFolderAnalysisHubOpen(false);
+    setFolderAiSummaryPathOverride(null);
+    folderAiSummaryOpenedFromInsightsRef.current = false;
+    setMainPaneViewMode((mode) => (mode === "folderAiSummary" ? "media" : mode));
+  }, []);
+
+  const openInsightsDuplicateFilesFlow = useCallback((): void => {
+    closeSimilarImagesView();
+    closeDuplicateFilesView();
+    setFolderAiSummaryPathOverride(null);
+    folderAiSummaryOpenedFromInsightsRef.current = false;
+    setMainPaneViewMode((m) => (m === "folderAiSummary" ? "media" : m));
+    setInsightsSubSection("duplicate-files");
+    setInsightsFolderAnalysisHubOpen(false);
+    setExpandedSidebarSection("insights");
+    if (sidebarCollapsed) {
+      store.getState().setSidebarCollapsed(false);
+    }
+    if (libraryRoots.length === 1) {
+      setInsightsDuplicateFilesHubOpen(false);
+      const root = libraryRoots[0].trim();
+      if (root) {
+        duplicateScanLaunchedFromInsightsRef.current = true;
+        void enqueueFolderDuplicateScan({ folderPath: root, recursive: true }).then((result) => {
+          if (!result.ok) {
+            window.desktopApi._logToMain(`[duplicate-scan] ${result.error}`);
+            return;
+          }
+          setProgressPanelCollapsed(false);
+        });
+      }
+      return;
+    }
+    setInsightsDuplicateFilesHubOpen(true);
+  }, [closeDuplicateFilesView, closeSimilarImagesView, libraryRoots, sidebarCollapsed, store]);
+
+  const openInsightsFolderAnalysisFlow = useCallback((): void => {
+    closeSimilarImagesView();
+    closeDuplicateFilesView();
+    setFolderAiSummaryPathOverride(null);
+    folderAiSummaryOpenedFromInsightsRef.current = false;
+    setMainPaneViewMode((m) => (m === "folderAiSummary" ? "media" : m));
+    setInsightsSubSection("folder-analysis-status");
+    setInsightsDuplicateFilesHubOpen(false);
+    setExpandedSidebarSection("insights");
+    if (sidebarCollapsed) {
+      store.getState().setSidebarCollapsed(false);
+    }
+    if (libraryRoots.length === 1) {
+      setInsightsFolderAnalysisHubOpen(false);
+      const root = libraryRoots[0].trim();
+      if (root) {
+        folderAiSummaryOpenedFromInsightsRef.current = true;
+        setFolderAiSummaryPathOverride(root);
+        setMainPaneViewMode("folderAiSummary");
+      }
+      return;
+    }
+    setInsightsFolderAnalysisHubOpen(true);
+  }, [
+    closeDuplicateFilesView,
+    closeSimilarImagesView,
+    libraryRoots,
+    sidebarCollapsed,
+    store,
+  ]);
+
+  const handleCheckDuplicateFilesFromInsightsHub = useCallback((folderPath: string): void => {
+    setInsightsDuplicateFilesHubOpen(false);
+    duplicateScanLaunchedFromInsightsRef.current = true;
+    void enqueueFolderDuplicateScan({ folderPath, recursive: true }).then((result) => {
+      if (!result.ok) {
+        window.desktopApi._logToMain(`[duplicate-scan] ${result.error}`);
+        return;
+      }
+      setProgressPanelCollapsed(false);
+    });
+  }, []);
+
+  const handleOpenFolderAiSummaryFromInsightsHub = useCallback((folderPath: string): void => {
+    setInsightsFolderAnalysisHubOpen(false);
+    folderAiSummaryOpenedFromInsightsRef.current = true;
+    setFolderAiSummaryPathOverride(folderPath);
+    setMainPaneViewMode("folderAiSummary");
+  }, []);
+
+  const handleFolderAiSummaryClosed = useCallback((): void => {
+    setFolderAiSummaryPathOverride(null);
+    setMainPaneViewMode("media");
+    if (folderAiSummaryOpenedFromInsightsRef.current) {
+      folderAiSummaryOpenedFromInsightsRef.current = false;
+      setInsightsSubSection("folder-analysis-status");
+      setInsightsFolderAnalysisHubOpen(true);
+    }
+  }, []);
+
+  const handleOpenFolderAiSummaryFromTree = useCallback(
+    (folderPath: string): void => {
+      setFolderAiSummaryPathOverride(null);
+      folderAiSummaryOpenedFromInsightsRef.current = false;
+      closeSimilarImagesView();
+      folderTree.handleOpenFolderAiSummary(folderPath);
+    },
+    [closeSimilarImagesView, folderTree],
+  );
+
   const handleSidebarSectionToggle = (sectionId: string): void => {
+    if (sectionId === "insights") {
+      if (sidebarCollapsed) {
+        store.getState().setSidebarCollapsed(false);
+        setExpandedSidebarSection("insights");
+        return;
+      }
+      setExpandedSidebarSection((current) => (current === "insights" ? null : "insights"));
+      return;
+    }
+
     if (sectionId === "folders" || sectionId === "albums" || sectionId === "people" || sectionId === "settings") {
       closeSimilarImagesView();
       closeDuplicateFilesView();
-      if (sectionId === "albums" && activeSidebarSection !== "albums") {
+      resetInsightsFlow();
+      if (sectionId === "albums" && primarySidebarSection !== "albums") {
         setAlbumSearchControlsOpen(false);
       }
-      setActiveSidebarSection(sectionId);
+      setPrimarySidebarSection(sectionId);
       if (sidebarCollapsed) {
         if (sectionId === "folders" || sectionId === "albums") {
           store.getState().setSidebarCollapsed(false);
@@ -375,7 +518,8 @@ export function App(): ReactElement {
   const openAlbumsSection = (): void => {
     closeSimilarImagesView();
     closeDuplicateFilesView();
-    setActiveSidebarSection("albums");
+    resetInsightsFlow();
+    setPrimarySidebarSection("albums");
     setExpandedSidebarSection("albums");
     if (sidebarCollapsed) {
       store.getState().setSidebarCollapsed(false);
@@ -434,19 +578,22 @@ export function App(): ReactElement {
   }, []);
 
   const handleFindSimilar = useCallback((sourcePath: string): void => {
+    resetInsightsFlow();
     closeDuplicateFilesView();
     setSimilarImagesSession({ sourcePath, minSimilarity: 0.9 });
     setSimilarImagesPage(0);
-  }, [closeDuplicateFilesView]);
+  }, [closeDuplicateFilesView, resetInsightsFlow]);
 
   const handleSimilarImagesMinSimilarityChange = useCallback((minSimilarity: number): void => {
     setSimilarImagesSession((session) => (session ? { ...session, minSimilarity } : null));
     setSimilarImagesPage(0);
   }, []);
 
-  const isPeopleSectionOpen = activeSidebarSection === "people";
-  const isAlbumsSectionOpen = activeSidebarSection === "albums";
-  const isSettingsSectionOpen = activeSidebarSection === "settings";
+  const isPeopleSectionOpen = primarySidebarSection === "people";
+  const isAlbumsSectionOpen = primarySidebarSection === "albums";
+  const isInsightsDuplicateFilesHubOpen = insightsDuplicateFilesHubOpen;
+  const isInsightsFolderAnalysisHubOpen = insightsFolderAnalysisHubOpen;
+  const isSettingsSectionOpen = primarySidebarSection === "settings";
 
   return (
     <div
@@ -458,7 +605,8 @@ export function App(): ReactElement {
       <DesktopAppSidebar
         store={store}
         sidebarCollapsed={sidebarCollapsed}
-        activeSidebarSection={activeSidebarSection}
+        primarySidebarSection={primarySidebarSection}
+        insightsSubSection={insightsSubSection}
         expandedSidebarSection={expandedSidebarSection}
         onSectionToggle={handleSidebarSectionToggle}
         libraryRoots={libraryRoots}
@@ -472,6 +620,10 @@ export function App(): ReactElement {
         onAlbumSelected={handleAlbumSelectedFromSidebar}
         onSmartAlbumSelected={handleSmartAlbumSelectedFromSidebar}
         onShowAlbumList={handleShowAlbumListFromSidebar}
+        onOpenInsightsDuplicateFiles={openInsightsDuplicateFilesFlow}
+        onOpenInsightsFolderAnalysis={openInsightsFolderAnalysisFlow}
+        insightsDuplicateFilesActive={insightsSubSection === "duplicate-files"}
+        insightsFolderAnalysisActive={insightsSubSection === "folder-analysis-status"}
         sidebarHighlightedSmartAlbumKind={
           isAlbumsSectionOpen && albumWorkspaceMode === "smart" ? smartAlbumRootKind : null
         }
@@ -480,13 +632,12 @@ export function App(): ReactElement {
           handleSelectFolder: async (folderPath) => {
             closeSimilarImagesView();
             closeDuplicateFilesView();
+            resetInsightsFlow();
             await folderTree.handleSelectFolder(folderPath);
           },
-          handleOpenFolderAiSummary: (folderPath) => {
-            closeSimilarImagesView();
-            folderTree.handleOpenFolderAiSummary(folderPath);
-          },
+          handleOpenFolderAiSummary: handleOpenFolderAiSummaryFromTree,
           handleCheckDuplicateFiles: (folderPath, recursive) => {
+            duplicateScanLaunchedFromInsightsRef.current = false;
             void enqueueFolderDuplicateScan({ folderPath, recursive }).then((result) => {
               if (!result.ok) {
                 window.desktopApi._logToMain(`[duplicate-scan] ${result.error}`);
@@ -502,6 +653,12 @@ export function App(): ReactElement {
         store={store}
         isPeopleSectionOpen={isPeopleSectionOpen}
         isAlbumsSectionOpen={isAlbumsSectionOpen}
+        mainPaneViewMode={mainPaneViewMode}
+        isInsightsDuplicateFilesHubOpen={isInsightsDuplicateFilesHubOpen}
+        isInsightsFolderAnalysisHubOpen={isInsightsFolderAnalysisHubOpen}
+        libraryRoots={libraryRoots}
+        onCheckDuplicateFilesFromInsightsHub={handleCheckDuplicateFilesFromInsightsHub}
+        onOpenFolderAiSummaryFromInsightsHub={handleOpenFolderAiSummaryFromInsightsHub}
         albumWorkspaceMode={albumWorkspaceMode}
         setAlbumWorkspaceMode={setAlbumWorkspaceMode}
         smartAlbumRootKind={smartAlbumRootKind}
@@ -543,7 +700,6 @@ export function App(): ReactElement {
         actionsMenuOpen={actionsMenuOpen}
         setActionsMenuOpen={setActionsMenuOpen}
         actionsMenuWrapRef={actionsMenuWrapRef}
-        mainPaneViewMode={mainPaneViewMode}
         setMainPaneViewMode={setMainPaneViewMode}
         rotationReviewScope={rotationReviewScope}
         setRotationReviewScope={setRotationReviewScope}
@@ -551,7 +707,9 @@ export function App(): ReactElement {
         onOpenImageEditSuggestions={openImageEditSuggestions}
         onCloseSpecialMainPaneView={closeSpecialMainPaneView}
         pipeline={pipeline}
-        handleOpenFolderAiSummary={folderTree.handleOpenFolderAiSummary}
+        handleOpenFolderAiSummary={handleOpenFolderAiSummaryFromTree}
+        folderAiSummaryPathOverride={folderAiSummaryPathOverride}
+        onFolderAiSummaryClosed={handleFolderAiSummaryClosed}
         imageEditSuggestionItems={imageEditSuggestionItems}
         isFolderLoading={isFolderLoading}
         folderLoadProgress={folderLoadProgress}
@@ -578,7 +736,7 @@ export function App(): ReactElement {
         duplicateFilesSession={duplicateFilesSession}
         duplicateFilesPage={duplicateFilesPage}
         onDuplicateFilesPageChange={setDuplicateFilesPage}
-        onCloseDuplicateFiles={closeDuplicateFilesView}
+        onCloseDuplicateFiles={handleCloseDuplicateFilesWorkspace}
         onDuplicateFilesDeletedMediaItems={handleDuplicateFilesDeletedMediaItems}
       />
 

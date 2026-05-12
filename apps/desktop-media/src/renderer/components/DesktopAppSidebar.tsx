@@ -1,20 +1,27 @@
 import type { ReactElement } from "react";
 import { MainAppSidebar } from "@emk/media-viewer";
 import type { SmartAlbumRootKind } from "@emk/shared-contracts";
-import { FolderOpen, Images, PanelLeftClose, PanelLeftOpen, Plus, Settings, Users } from "lucide-react";
+import { FolderOpen, Images, Lightbulb, PanelLeftClose, PanelLeftOpen, Plus, Settings, Users } from "lucide-react";
 import { DesktopFoldersSidebarPanel } from "./DesktopFoldersSidebarPanel";
 import { DesktopSidebarAlbumsSection } from "./DesktopSidebarAlbumsSection";
+import { DesktopSidebarInsightsSection } from "./insights/desktop-sidebar-insights-section";
 import type { DesktopPipelineHandlers } from "../hooks/use-desktop-pipeline-handlers";
 import { UI_TEXT } from "../lib/ui-text";
 import { cn } from "../lib/cn";
 import type { DesktopStore, DesktopStoreState } from "../stores/desktop-store";
-import type { SidebarSectionId } from "../types/app-types";
+import type {
+  ExpandedSidebarSectionId,
+  InsightsSidebarSubSection,
+  PrimarySidebarSectionId,
+} from "../types/app-types";
 
 interface DesktopAppSidebarProps {
   store: DesktopStore;
   sidebarCollapsed: boolean;
-  activeSidebarSection: SidebarSectionId;
-  expandedSidebarSection: SidebarSectionId | null;
+  primarySidebarSection: PrimarySidebarSectionId;
+  /** When set, top-level sections (Folders, Albums, …) are not shown as active; Insights header stays visually inactive. */
+  insightsSubSection: InsightsSidebarSubSection | null;
+  expandedSidebarSection: ExpandedSidebarSectionId | null;
   onSectionToggle: (sectionId: string) => void;
   libraryRoots: DesktopStoreState["libraryRoots"];
   selectedFolder: DesktopStoreState["selectedFolder"];
@@ -27,6 +34,10 @@ interface DesktopAppSidebarProps {
   onAlbumSelected: () => void;
   onSmartAlbumSelected: (kind: SmartAlbumRootKind) => void;
   onShowAlbumList: () => void;
+  onOpenInsightsDuplicateFiles: () => void;
+  onOpenInsightsFolderAnalysis: () => void;
+  insightsDuplicateFilesActive: boolean;
+  insightsFolderAnalysisActive: boolean;
   /** When albums workspace is in smart mode, which root is active (sidebar row highlight). */
   sidebarHighlightedSmartAlbumKind: SmartAlbumRootKind | null;
   /** When set, overrides default RECENT expansion in the albums sidebar (e.g. from app settings). */
@@ -44,7 +55,8 @@ interface DesktopAppSidebarProps {
 export function DesktopAppSidebar({
   store,
   sidebarCollapsed,
-  activeSidebarSection,
+  primarySidebarSection,
+  insightsSubSection,
   expandedSidebarSection,
   onSectionToggle,
   libraryRoots,
@@ -58,6 +70,10 @@ export function DesktopAppSidebar({
   onAlbumSelected,
   onSmartAlbumSelected,
   onShowAlbumList,
+  onOpenInsightsDuplicateFiles,
+  onOpenInsightsFolderAnalysis,
+  insightsDuplicateFilesActive,
+  insightsFolderAnalysisActive,
   sidebarHighlightedSmartAlbumKind,
   albumsSidebarExpandRecentByDefault,
   folderTree,
@@ -81,7 +97,7 @@ export function DesktopAppSidebar({
             id: "folders",
             label: UI_TEXT.sectionFolders,
             icon: <FolderOpen size={20} aria-hidden="true" />,
-            headerTrailing: activeSidebarSection === "folders"
+            headerTrailing: primarySidebarSection === "folders" && insightsSubSection === null
               ? (
                   <button
                     type="button"
@@ -120,7 +136,7 @@ export function DesktopAppSidebar({
             id: "albums",
             label: UI_TEXT.sectionAlbums,
             icon: <Images size={20} aria-hidden="true" />,
-            headerTrailing: activeSidebarSection === "albums"
+            headerTrailing: primarySidebarSection === "albums" && insightsSubSection === null
               ? (
                   <button
                     type="button"
@@ -154,6 +170,21 @@ export function DesktopAppSidebar({
             label: UI_TEXT.sectionPeople,
             icon: <Users size={20} aria-hidden="true" />,
           },
+          {
+            id: "insights",
+            label: UI_TEXT.sectionInsights,
+            icon: <Lightbulb size={20} aria-hidden="true" />,
+            contentChrome: "plain",
+            contentClassName: "pr-0",
+            content: (
+              <DesktopSidebarInsightsSection
+                isDuplicateFilesActive={insightsDuplicateFilesActive}
+                isFolderAnalysisActive={insightsFolderAnalysisActive}
+                onOpenDuplicateFiles={onOpenInsightsDuplicateFiles}
+                onOpenFolderAnalysis={onOpenInsightsFolderAnalysis}
+              />
+            ),
+          },
         ]}
         bottomSections={[
           {
@@ -162,7 +193,7 @@ export function DesktopAppSidebar({
             icon: <Settings size={20} aria-hidden="true" />,
           },
         ]}
-        activeSectionId={activeSidebarSection}
+        activeSectionId={insightsSubSection !== null ? null : primarySidebarSection}
         expandedSectionId={expandedSidebarSection}
         onSectionToggle={onSectionToggle}
       />
