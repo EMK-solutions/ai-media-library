@@ -96,28 +96,32 @@ function ToDeleteCheckbox({
   className?: string;
 }): ReactElement {
   return (
-    <label className={cn("inline-flex cursor-pointer items-center gap-2 select-none", className)}>
-      <input
-        type="checkbox"
-        className="peer sr-only"
-        checked={checked}
-        onChange={(e) => {
-          onToggle(markKey, e.target.checked);
-        }}
-      />
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left select-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        className,
+      )}
+      onClick={() => {
+        onToggle(markKey, !checked);
+      }}
+    >
       <span
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
           checked
             ? "border-destructive bg-destructive text-destructive-foreground"
-            : "border-border bg-background peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background",
+            : "border-border bg-background",
         )}
         aria-hidden="true"
       >
         {checked ? <Check className="size-4" strokeWidth={3} aria-hidden="true" /> : null}
       </span>
       <span className={cn("text-sm", checked ? "font-medium text-destructive" : "text-muted-foreground")}>To delete</span>
-    </label>
+    </button>
   );
 }
 

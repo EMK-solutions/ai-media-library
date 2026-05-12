@@ -21,6 +21,26 @@ export function formatStorageSizeForDuplicateMetricCards(bytes: number): string 
   return `${mb.toFixed(2)} MB`;
 }
 
+/**
+ * Duplicate delete confirmation: MB (fractional) or GB (one decimal) when ≥ 1 GB.
+ */
+export function formatMbOrGbForDeleteConfirm(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 MB";
+  }
+  if (bytes >= BYTES_PER_GB) {
+    return `${(bytes / BYTES_PER_GB).toFixed(1)} GB`;
+  }
+  const mb = bytes / BYTES_PER_MB;
+  if (mb >= 100) {
+    return `${mb.toFixed(0)} MB`;
+  }
+  if (mb >= 10) {
+    return `${mb.toFixed(1)} MB`;
+  }
+  return `${mb.toFixed(2)} MB`;
+}
+
 export function formatDuplicateShareInScanScopePercent(
   scopedNumerator: number,
   selectionScopeMediaCount: number | null,

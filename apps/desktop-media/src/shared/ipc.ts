@@ -340,6 +340,24 @@ export type GetFolderDuplicateScanResultResponse =
   | { ok: true; result: FolderDuplicateScanResultPayload }
   | { ok: false; error: string };
 
+/** One file chosen in the duplicate-files UI for deletion. */
+export interface DuplicateMarkedFilesDeleteTarget {
+  mediaItemId: string;
+  sourcePath: string;
+}
+
+/** Params for the `duplicate-marked-files-delete` pipeline. */
+export interface DuplicateMarkedFilesDeleteParams {
+  targets: DuplicateMarkedFilesDeleteTarget[];
+  useTrash: boolean;
+}
+
+/** Result from `duplicate-marked-files-delete` (also sent on pipeline `job-finished.output`). */
+export interface DuplicateMarkedFilesDeleteJobResult {
+  deletedMediaItemIds: string[];
+  failed: Array<{ mediaItemId: string; sourcePath: string; error: string }>;
+}
+
 export interface CountMediaItemsByParentFoldersRequest {
   folderPaths: string[];
   libraryId?: string;

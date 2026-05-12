@@ -114,6 +114,7 @@ interface DesktopAppMainProps {
   duplicateFilesPage: number;
   onDuplicateFilesPageChange: Dispatch<SetStateAction<number>>;
   onCloseDuplicateFiles: () => void;
+  onDuplicateFilesDeletedMediaItems: (mediaItemIds: readonly string[]) => void;
 }
 
 export function DesktopAppMain({
@@ -197,6 +198,7 @@ export function DesktopAppMain({
   duplicateFilesPage,
   onDuplicateFilesPageChange,
   onCloseDuplicateFiles,
+  onDuplicateFilesDeletedMediaItems,
 }: DesktopAppMainProps): ReactElement {
   return (
     <main className="main-panel relative flex min-h-0 min-w-0 flex-col overflow-hidden">
@@ -208,6 +210,7 @@ export function DesktopAppMain({
             currentPage={duplicateFilesPage}
             onPageChange={onDuplicateFilesPageChange}
             onClose={onCloseDuplicateFiles}
+            onDeletedMediaItems={onDuplicateFilesDeletedMediaItems}
           />
         </div>
       ) : similarImagesSession ? (

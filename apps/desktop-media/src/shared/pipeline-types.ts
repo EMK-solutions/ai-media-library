@@ -36,7 +36,8 @@ export type PipelineId =
   | "desc-embedding-backfill"
   | "path-llm-analysis"
   | "similar-untagged-counts"
-  | "folder-duplicate-scan";
+  | "folder-duplicate-scan"
+  | "duplicate-marked-files-delete";
 
 /**
  * Lifecycle state of a single job inside a bundle.
@@ -148,6 +149,8 @@ export type PipelineLifecycleEvent =
       pipelineId: PipelineId;
       state: JobState;
       error: string | null;
+      /** Job return value when the scheduler has it (e.g. structured delete summary). */
+      output?: unknown;
     }
   | { type: "bundle-finished"; bundleId: string; state: BundleState };
 

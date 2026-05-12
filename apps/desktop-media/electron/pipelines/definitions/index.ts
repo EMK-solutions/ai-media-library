@@ -24,6 +24,7 @@ import { descriptionEmbeddingDefinition } from "./description-embedding";
 import { semanticIndexDefinition } from "./semantic-index";
 import { descEmbeddingBackfillDefinition } from "./desc-embedding-backfill";
 import { pathLlmAnalysisDefinition } from "./path-llm-analysis";
+import { duplicateMarkedFilesDeleteDefinition } from "./duplicate-marked-files-delete";
 import { folderDuplicateScanDefinition } from "./folder-duplicate-scan";
 import { registerAllPresets } from "../presets";
 
@@ -50,6 +51,7 @@ export function registerAllPipelineDefinitions(): void {
   pipelineRegistry.register(descEmbeddingBackfillDefinition);
   pipelineRegistry.register(pathLlmAnalysisDefinition);
   pipelineRegistry.register(folderDuplicateScanDefinition);
+  pipelineRegistry.register(duplicateMarkedFilesDeleteDefinition);
 
   // Presets are registered alongside definitions so callers see a populated
   // preset registry by the time the IPC handler accepts requests.

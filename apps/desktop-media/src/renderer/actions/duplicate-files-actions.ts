@@ -1,3 +1,4 @@
+import type { DuplicateMarkedFilesDeleteTarget } from "../../shared/ipc";
 import type { EnqueueBundleResponse } from "../../shared/pipeline-ipc";
 
 function rejectionMessage(result: EnqueueBundleResponse): string {
@@ -13,8 +14,36 @@ function rejectionMessage(result: EnqueueBundleResponse): string {
     case "invalid-binding":
       return rejection.reason;
     default:
-      return "Could not enqueue duplicate scan.";
+      return "Could not enqueue pipeline.";
   }
+}
+
+/**
+ * Enqueues deletion of catalog files chosen in the duplicate-files view (progress in Background operations).
+ */
+export async function enqueueDuplicateMarkedFilesDelete(options: {
+  targets: DuplicateMarkedFilesDeleteTarget[];
+  useTrash: boolean;
+  displayName: string;
+}): Promise<{ ok: true; bundleId: string } | { ok: false; error: string }> {
+  if (options.targets.length === 0) {
+    return { ok: false, error: "No files to delete." };
+  }
+
+  const result = await window.desktopApi.pipelines.enqueueBundle({
+    kind: "single-job",
+    payload: {
+      pipelineId: "duplicate-marked-files-delete",
+      displayName: options.displayName,
+      params: { targets: options.targets, useTrash: options.useTrash },
+    },
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: rejectionMessage(result) };
+  }
+
+  return { ok: true, bundleId: result.bundleId };
 }
 
 /**

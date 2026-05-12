@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatDuplicateShareInScanScopePercent,
   formatFolderTableDuplicateSize,
+  formatMbOrGbForDeleteConfirm,
   formatStorageSizeForDuplicateMetricCards,
 } from "./duplicate-files-metric-formatters";
 
@@ -32,6 +33,17 @@ describe("formatFolderTableDuplicateSize", () => {
 
   it("returns zero Kb for non-positive", () => {
     expect(formatFolderTableDuplicateSize(0)).toBe("0 Kb");
+  });
+});
+
+describe("formatMbOrGbForDeleteConfirm", () => {
+  it("matches GB threshold like metric cards", () => {
+    const oneGb = 1024 ** 3;
+    expect(formatMbOrGbForDeleteConfirm(oneGb)).toBe("1.0 GB");
+  });
+
+  it("uses MB below 1 GB", () => {
+    expect(formatMbOrGbForDeleteConfirm(5 * 1024 * 1024)).toBe("5.00 MB");
   });
 });
 

@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
-import { ArrowLeft, Info, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import type { FolderDuplicateScanResultPayload, FolderDuplicateScanRow } from "../../../shared/ipc";
 import { PeoplePaginationBar } from "../people-pagination-bar";
 import { ALBUM_ITEMS_PAGE_SIZE } from "../DesktopAlbumDetailPanel";
+import { enqueueDuplicateMarkedFilesDelete } from "../../actions/duplicate-files-actions";
 import { cn } from "../../lib/cn";
+import {
+  collectDuplicateDeleteTargetsForColumn,
+  countDistinctParentFolders,
+  sumByteSizesForPaths,
+  type DuplicateDeleteColumn,
+} from "../../lib/duplicate-files-marked-delete-aggregate";
 import {
   formatComparablePathForDisplay,
   inferPathDisplayStyle,
@@ -22,23 +29,47 @@ import {
   totalByteSizeOfDuplicatesInsideDiskTree,
   totalByteSizeOfDuplicatesOutsideDiskTree,
 } from "../../lib/duplicate-files-outside-selection-stats";
+import { useDuplicateMarkedFilesDeleteCompletion } from "../../hooks/use-duplicate-marked-files-delete-completion";
 import { DuplicateFilesByFolderPanel, type DuplicateFolderPickRegion } from "./duplicate-files-by-folder-panel";
+import { DuplicateFilesDeleteConfirmDialog } from "./DuplicateFilesDeleteConfirmDialog";
 import { DuplicateResultRow } from "./duplicate-files-result-row";
 
 type DuplicateViewMode = "by-folder" | "by-file";
 
+function isDuplicateMarkedFilesDeletePipelineBusy(s: {
+  pipelineRunning: { jobs: { pipelineId: string; state: string }[] }[];
+  pipelineQueued: { jobs: { pipelineId: string; state: string }[] }[];
+}): boolean {
+  const bundles = [...s.pipelineRunning, ...s.pipelineQueued];
+  for (const b of bundles) {
+    for (const j of b.jobs) {
+      if (j.pipelineId !== "duplicate-marked-files-delete") {
+        continue;
+      }
+      if (j.state === "running" || j.state === "pending") {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function DupColumnToolbarRow({
-  markedOnPage,
+  markedInColumn,
   showSelectAll,
   showClearAll,
   onSelectAll,
   onClearAll,
+  deleteDisabled,
+  onRequestDelete,
 }: {
-  markedOnPage: number;
+  markedInColumn: number;
   showSelectAll: boolean;
   showClearAll: boolean;
   onSelectAll: () => void;
   onClearAll: () => void;
+  deleteDisabled: boolean;
+  onRequestDelete: () => void;
 }): ReactElement {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 pt-2 text-sm text-muted-foreground">
@@ -63,13 +94,19 @@ function DupColumnToolbarRow({
         ) : null}
       </div>
       <div className="flex min-w-0 shrink-0 items-center gap-2">
-        <span className="whitespace-nowrap">To delete: {markedOnPage}</span>
+        <span className="whitespace-nowrap">To delete: {markedInColumn}</span>
         <button
           type="button"
-          disabled
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground opacity-60"
-          title="Delete marked in this column (coming soon)"
-          aria-label="Delete marked in this column (coming soon)"
+          disabled={deleteDisabled}
+          className={cn(
+            "inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors",
+            deleteDisabled
+              ? "cursor-not-allowed opacity-50"
+              : "hover:bg-muted/40 hover:text-foreground",
+          )}
+          title={deleteDisabled ? "Nothing to delete or deletion in progress" : "Delete marked files in this column"}
+          aria-label={deleteDisabled ? "Delete marked in this column (unavailable)" : "Delete marked in this column"}
+          onClick={onRequestDelete}
         >
           <Trash2 size={16} aria-hidden="true" />
         </button>
@@ -93,11 +130,14 @@ export function DesktopDuplicateFilesWorkspace({
   currentPage,
   onPageChange,
   onClose,
+  onDeletedMediaItems,
 }: {
   payload: FolderDuplicateScanResultPayload;
   currentPage: number;
   onPageChange: (page: number) => void;
   onClose: () => void;
+  /** Called after disk + catalog delete succeeds for the given media item ids. */
+  onDeletedMediaItems?: (mediaItemIds: readonly string[]) => void;
 }): ReactElement {
   const dateFormat = useDesktopStore((s) => s.mediaViewerSettings.dateFormat);
   const rows = payload.rows;
@@ -105,10 +145,13 @@ export function DesktopDuplicateFilesWorkspace({
   const [viewMode, setViewMode] = useState<DuplicateViewMode>("by-folder");
   const [filterFolder, setFilterFolder] = useState<string | null>(null);
   const [filterFolderRegion, setFilterFolderRegion] = useState<DuplicateFolderPickRegion | null>(null);
-  const [insightsOpen, setInsightsOpen] = useState(false);
   const [markedForDelete, setMarkedForDelete] = useState<ReadonlySet<string>>(() => new Set());
   const [folderMediaCounts, setFolderMediaCounts] = useState<Record<string, number>>({});
   const [selectionScopeMediaCount, setSelectionScopeMediaCount] = useState<number | null>(null);
+  const [deleteDialogColumn, setDeleteDialogColumn] = useState<DuplicateDeleteColumn | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const duplicateDeletePipelineBusy = useDesktopStore(isDuplicateMarkedFilesDeletePipelineBusy);
 
   const folderSummaries = useMemo(() => buildDuplicateFolderSummaries(payload), [payload]);
 
@@ -296,14 +339,48 @@ export function DesktopDuplicateFilesWorkspace({
     return { scoped, dup };
   }, [pageSliceFullList]);
 
-  const markedScopedOnPage = useMemo(
-    () => pageMarkKeys.scoped.filter((k) => markedForDelete.has(k)).length,
-    [pageMarkKeys.scoped, markedForDelete],
+  const scopedColumnTargets = useMemo(
+    () => collectDuplicateDeleteTargetsForColumn(filteredRows, markedForDelete, "scoped"),
+    [filteredRows, markedForDelete],
+  );
+  const dupColumnTargets = useMemo(
+    () => collectDuplicateDeleteTargetsForColumn(filteredRows, markedForDelete, "dup"),
+    [filteredRows, markedForDelete],
   );
 
-  const markedDupOnPage = useMemo(
-    () => pageMarkKeys.dup.filter((k) => markedForDelete.has(k)).length,
-    [pageMarkKeys.dup, markedForDelete],
+  const deleteInProgress = duplicateDeletePipelineBusy || deleteSubmitting;
+
+  const handleDeletedMediaItemIds = useCallback(
+    (ids: readonly string[]) => {
+      onDeletedMediaItems?.(ids);
+      setMarkedForDelete((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) {
+          next.delete(`scoped:${id}`);
+          next.delete(`dup:${id}`);
+        }
+        return next;
+      });
+    },
+    [onDeletedMediaItems],
+  );
+
+  useDuplicateMarkedFilesDeleteCompletion(handleDeletedMediaItemIds);
+
+  const deleteDialogTargets = useMemo(() => {
+    if (!deleteDialogColumn) {
+      return [];
+    }
+    return collectDuplicateDeleteTargetsForColumn(filteredRows, markedForDelete, deleteDialogColumn);
+  }, [deleteDialogColumn, filteredRows, markedForDelete]);
+
+  const deleteDialogFolderCount = useMemo(
+    () => countDistinctParentFolders(deleteDialogTargets.map((t) => t.sourcePath)),
+    [deleteDialogTargets],
+  );
+  const deleteDialogByteTotal = useMemo(
+    () => sumByteSizesForPaths(filteredRows, deleteDialogTargets),
+    [filteredRows, deleteDialogTargets],
   );
 
   const handleToggleMarkForDelete = useCallback((key: string, next: boolean) => {
@@ -414,7 +491,57 @@ export function DesktopDuplicateFilesWorkspace({
 
   const primaryBackLabel = viewMode === "by-file" ? "Back to duplicate folders" : "Exit duplicates view";
 
-  const byFileHasTable = viewMode === "by-file" && pageSliceFullList.length > 0;
+  const handleRequestDeleteColumn = useCallback(
+    (column: DuplicateDeleteColumn) => {
+      if (deleteInProgress) {
+        return;
+      }
+      const targets = collectDuplicateDeleteTargetsForColumn(filteredRows, markedForDelete, column);
+      if (targets.length === 0) {
+        return;
+      }
+      setDeleteDialogColumn(column);
+    },
+    [deleteInProgress, filteredRows, markedForDelete],
+  );
+
+  const handleCancelDeleteDialog = useCallback(() => {
+    if (!deleteSubmitting) {
+      setDeleteDialogColumn(null);
+    }
+  }, [deleteSubmitting]);
+
+  const handleConfirmDeleteDialog = useCallback(
+    (useTrash: boolean) => {
+      const column = deleteDialogColumn;
+      if (column == null) {
+        return;
+      }
+      void (async () => {
+        const targets = collectDuplicateDeleteTargetsForColumn(filteredRows, markedForDelete, column);
+        if (targets.length === 0) {
+          setDeleteDialogColumn(null);
+          return;
+        }
+        setDeleteSubmitting(true);
+        try {
+          const result = await enqueueDuplicateMarkedFilesDelete({
+            targets,
+            useTrash,
+            displayName: `Delete duplicate files (${targets.length})`,
+          });
+          if (!result.ok) {
+            window.alert(result.error);
+            return;
+          }
+          setDeleteDialogColumn(null);
+        } finally {
+          setDeleteSubmitting(false);
+        }
+      })();
+    },
+    [deleteDialogColumn, filteredRows, markedForDelete],
+  );
 
   const scopedSelectAllVisible =
     pageMarkKeys.scoped.length > 0 && !pageMarkKeys.scoped.every((k) => markedForDelete.has(k));
@@ -422,6 +549,8 @@ export function DesktopDuplicateFilesWorkspace({
   const dupSelectAllVisible =
     pageMarkKeys.dup.length > 0 && !pageMarkKeys.dup.every((k) => markedForDelete.has(k));
   const dupClearAllVisible = pageMarkKeys.dup.some((k) => markedForDelete.has(k));
+
+  const byFileHasTable = viewMode === "by-file" && pageSliceFullList.length > 0;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -484,54 +613,15 @@ export function DesktopDuplicateFilesWorkspace({
               By file
             </button>
           </div>
-          <button
-            type="button"
-            className={cn(
-              "inline-flex size-10 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-              insightsOpen && "border-primary/50 bg-muted/30 text-foreground",
-            )}
-            onClick={() => setInsightsOpen((v) => !v)}
-            aria-expanded={insightsOpen}
-            aria-label="How duplicate folder tables work"
-            title="How duplicate folder tables work"
-          >
-            <Info size={22} strokeWidth={2} aria-hidden="true" />
-          </button>
         </div>
       </header>
 
-      {insightsOpen ? (
-        <div className="shrink-0 border-b border-border bg-muted/20 px-4 py-3 text-base leading-relaxed text-muted-foreground">
-          <p className="font-medium text-foreground">How these tables relate</p>
-          <ul className="mt-2 list-inside list-disc space-y-2">
-            <li>
-              Each region (<strong className="text-foreground">outside</strong> vs{" "}
-              <strong className="text-foreground">inside</strong> the selected path on disk) has a section title, three
-              metric cards, then a folder table. The section with more duplicate paths in its table appears first.
-            </li>
-            <li>
-              <strong className="text-foreground">Duplicates</strong> on the cards is the share of catalog files in the
-              scanned folder (same scope as the duplicate scan) that have at least one duplicate path in that region;{" "}
-              <strong className="text-foreground">Files</strong> is the same count as that percentage’s numerator.{" "}
-              <strong className="text-foreground">Size</strong> on the cards uses GB with one decimal when the total is at
-              least 1 GB, otherwise MB. The folder table <strong className="text-foreground">Size</strong> column uses Kb,
-              Mb, or Gb. Click <strong className="text-foreground">Duplicates</strong> or <strong className="text-foreground">Size</strong>{" "}
-              in the table header to sort that column (highest first).
-            </li>
-            <li>
-              In each table, <strong className="text-foreground">Duplicates</strong> is how many duplicate paths sit in
-              that folder; <strong className="text-foreground">% of folder</strong> compares that to catalog items stored
-              directly in that folder.
-            </li>
-            <li>
-              Click a folder row to switch to <strong className="text-foreground">By file</strong> filtered to files in
-              that directory (scoped items or duplicate paths stored there).
-            </li>
-          </ul>
-        </div>
-      ) : null}
-
-      <div className={cn("min-h-0 flex-1 overflow-auto px-4", byFileHasTable ? "pb-3 pt-0" : "py-3")}>
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-auto px-4",
+          byFileHasTable ? "pb-3 pt-0" : viewMode === "by-folder" ? "pt-3 pb-14" : "py-3",
+        )}
+      >
         {viewMode === "by-folder" ? (
           <DuplicateFilesByFolderPanel
             outsideSummaries={outsideSummaries}
@@ -559,11 +649,15 @@ export function DesktopDuplicateFilesWorkspace({
                   <div className="text-base font-semibold uppercase tracking-wide text-primary">Selected folder</div>
                   <div className="break-all font-mono text-sm font-medium text-foreground">{selectedFolderSubheaderDisplay}</div>
                   <DupColumnToolbarRow
-                    markedOnPage={markedScopedOnPage}
+                    markedInColumn={scopedColumnTargets.length}
                     showSelectAll={scopedSelectAllVisible}
                     showClearAll={scopedClearAllVisible}
                     onSelectAll={handleSelectAllScopedOnPage}
                     onClearAll={handleClearScopedOnPage}
+                    deleteDisabled={scopedColumnTargets.length === 0 || deleteInProgress}
+                    onRequestDelete={() => {
+                      handleRequestDeleteColumn("scoped");
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -572,11 +666,15 @@ export function DesktopDuplicateFilesWorkspace({
                     <FoldersWithDupHeaderLine text={foldersWithDupSubheaderText} />
                   </div>
                   <DupColumnToolbarRow
-                    markedOnPage={markedDupOnPage}
+                    markedInColumn={dupColumnTargets.length}
                     showSelectAll={dupSelectAllVisible}
                     showClearAll={dupClearAllVisible}
                     onSelectAll={handleSelectAllDupOnPage}
                     onClearAll={handleClearDupOnPage}
+                    deleteDisabled={dupColumnTargets.length === 0 || deleteInProgress}
+                    onRequestDelete={() => {
+                      handleRequestDeleteColumn("dup");
+                    }}
                   />
                 </div>
               </div>
@@ -592,18 +690,26 @@ export function DesktopDuplicateFilesWorkspace({
                 </div>
 
                 <DupColumnToolbarRow
-                  markedOnPage={markedScopedOnPage}
+                  markedInColumn={scopedColumnTargets.length}
                   showSelectAll={scopedSelectAllVisible}
                   showClearAll={scopedClearAllVisible}
                   onSelectAll={handleSelectAllScopedOnPage}
                   onClearAll={handleClearScopedOnPage}
+                  deleteDisabled={scopedColumnTargets.length === 0 || deleteInProgress}
+                  onRequestDelete={() => {
+                    handleRequestDeleteColumn("scoped");
+                  }}
                 />
                 <DupColumnToolbarRow
-                  markedOnPage={markedDupOnPage}
+                  markedInColumn={dupColumnTargets.length}
                   showSelectAll={dupSelectAllVisible}
                   showClearAll={dupClearAllVisible}
                   onSelectAll={handleSelectAllDupOnPage}
                   onClearAll={handleClearDupOnPage}
+                  deleteDisabled={dupColumnTargets.length === 0 || deleteInProgress}
+                  onRequestDelete={() => {
+                    handleRequestDeleteColumn("dup");
+                  }}
                 />
               </div>
             </div>
@@ -635,6 +741,15 @@ export function DesktopDuplicateFilesWorkspace({
           />
         </div>
       ) : null}
+      <DuplicateFilesDeleteConfirmDialog
+        open={deleteDialogColumn != null}
+        fileCount={deleteDialogTargets.length}
+        folderCount={deleteDialogFolderCount}
+        totalBytes={deleteDialogByteTotal}
+        isBusy={deleteSubmitting}
+        onConfirm={handleConfirmDeleteDialog}
+        onCancel={handleCancelDeleteDialog}
+      />
     </div>
   );
 }

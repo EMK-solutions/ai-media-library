@@ -28,6 +28,7 @@ import {
 } from "./hooks/useDesktopIpcBindings";
 import { usePipelineQueueBinding } from "./hooks/use-pipeline-queue-binding";
 import { useFolderDuplicateScanCompletion } from "./hooks/use-folder-duplicate-scan-completion";
+import { filterDuplicateScanPayloadAfterMediaDeleted } from "./lib/duplicate-files-session-after-delete";
 import { useFilteredMediaItems } from "./hooks/use-filtered-media-items";
 import { lookupMediaMetadataByItemId } from "./lib/media-metadata-lookup";
 import { useAnalysisEta, useFaceDetectionEta, useMetadataProgress, useSemanticIndexEta } from "./hooks/use-eta-tracking";
@@ -299,6 +300,12 @@ export function App(): ReactElement {
     setDuplicateFilesPage(0);
   }, []);
 
+  const handleDuplicateFilesDeletedMediaItems = useCallback((mediaItemIds: readonly string[]) => {
+    setDuplicateFilesSession((prev) =>
+      prev ? filterDuplicateScanPayloadAfterMediaDeleted(prev, mediaItemIds) : prev,
+    );
+  }, []);
+
   useFolderDuplicateScanCompletion(onDuplicateScanResult);
 
   const handleSidebarSectionToggle = (sectionId: string): void => {
@@ -527,6 +534,7 @@ export function App(): ReactElement {
         duplicateFilesPage={duplicateFilesPage}
         onDuplicateFilesPageChange={setDuplicateFilesPage}
         onCloseDuplicateFiles={closeDuplicateFilesView}
+        onDuplicateFilesDeletedMediaItems={handleDuplicateFilesDeletedMediaItems}
       />
 
       <MediaSwiperViewer
