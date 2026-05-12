@@ -447,7 +447,9 @@ export function App(): ReactElement {
             void enqueueFolderDuplicateScan({ folderPath, recursive }).then((result) => {
               if (!result.ok) {
                 window.desktopApi._logToMain(`[duplicate-scan] ${result.error}`);
+                return;
               }
+              setProgressPanelCollapsed(false);
             });
           },
         }}
