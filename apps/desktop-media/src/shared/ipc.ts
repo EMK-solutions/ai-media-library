@@ -20,6 +20,16 @@ import type { SemanticSearchSignalMode } from "@emk/media-store";
 import type { PipelineDesktopApi } from "./pipeline-ipc";
 import type { PipelineConcurrencyConfig } from "./pipeline-types";
 import { DEFAULT_PIPELINE_CONCURRENCY } from "./pipeline-types";
+import {
+  DEFAULT_GUIDED_EXPERIENCE_SETTINGS,
+  type GuidedExperienceSettings,
+} from "./guided-experience-types";
+
+export type {
+  GuidedExperienceSettings,
+  GuidedHelpTopicId,
+  GuidedHelpTopicState,
+} from "./guided-experience-types";
 
 export const IMAGE_EXTENSIONS = new Set([
   ".jpg",
@@ -262,6 +272,8 @@ export interface AppSettings {
    * Advanced users may relax these to allow more parallelism.
    */
   pipelineConcurrency: PipelineConcurrencyConfig;
+  /** Per-topic help wizard dismissal, future product intro, milestones (see roadmap). */
+  guidedExperience: GuidedExperienceSettings;
   clientId: string;
 }
 
@@ -819,6 +831,7 @@ export const DEFAULT_APP_SETTINGS: Omit<AppSettings, "clientId"> = {
   pathExtraction: DEFAULT_PATH_EXTRACTION_SETTINGS,
   aiInferencePreferredGpuId: null,
   pipelineConcurrency: DEFAULT_PIPELINE_CONCURRENCY,
+  guidedExperience: DEFAULT_GUIDED_EXPERIENCE_SETTINGS,
 };
 
 export interface FolderNode {

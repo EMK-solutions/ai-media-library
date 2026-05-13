@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useDesktopStoreApi } from "../stores/desktop-store";
 import { applyPersistedAppSettingsToStore } from "../lib/apply-persisted-app-settings";
+import type { GuidedExperienceSettings } from "../../shared/guided-experience-types";
 import {
   bindPhotoAnalysisProgress,
   bindFaceDetectionProgress,
@@ -369,7 +370,8 @@ export function useDesktopSettingsPersistence(): void {
           pipelineConcurrencyChanged(
             state.pipelineConcurrencySettings,
             prev.pipelineConcurrencySettings,
-          )
+          ) ||
+          !guidedExperienceSettingsEqual(state.guidedExperienceSettings, prev.guidedExperienceSettings)
         ) {
           void window.desktopApi.saveSettings({
             clientId: state.clientId,
@@ -386,11 +388,16 @@ export function useDesktopSettingsPersistence(): void {
             pathExtraction: state.pathExtractionSettings,
             aiInferencePreferredGpuId: state.aiInferencePreferredGpuId,
             pipelineConcurrency: state.pipelineConcurrencySettings,
+            guidedExperience: state.guidedExperienceSettings,
           });
         }
       },
     );
   }, [store]);
+}
+
+function guidedExperienceSettingsEqual(next: GuidedExperienceSettings, prev: GuidedExperienceSettings): boolean {
+  return JSON.stringify(next) === JSON.stringify(prev);
 }
 
 function pipelineConcurrencyChanged(

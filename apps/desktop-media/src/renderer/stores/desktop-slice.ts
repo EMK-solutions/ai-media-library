@@ -23,6 +23,11 @@ import {
   type WrongImageRotationDetectionSettings,
 } from "../../shared/ipc";
 import {
+  DEFAULT_GUIDED_EXPERIENCE_SETTINGS,
+  type GuidedExperienceSettings,
+  type GuidedHelpTopicId,
+} from "../../shared/guided-experience-types";
+import {
   DEFAULT_PIPELINE_CONCURRENCY,
   type PipelineConcurrencyConfig,
 } from "../../shared/pipeline-types";
@@ -69,6 +74,13 @@ export interface DesktopSlice {
   aiInferencePreferredGpuId: string | null;
   /** Per-group concurrency limits for the new pipeline scheduler. */
   pipelineConcurrencySettings: PipelineConcurrencyConfig;
+  /** Mirrors `AppSettings.guidedExperience` (help wizard dismissal, future onboarding). */
+  guidedExperienceSettings: GuidedExperienceSettings;
+  /**
+   * Set true after the first `applyPersistedAppSettingsToStore` from disk/main.
+   * Used to avoid auto-opening guided help before settings hydration.
+   */
+  persistedSettingsHydrated: boolean;
   aiInferenceGpuOptions: AiInferenceGpuOption[];
   faceModelDownload: {
     visible: boolean;
@@ -183,6 +195,8 @@ export interface DesktopSlice {
   setAiInferencePreferredGpuId: (gpuId: string | null) => void;
   setAiInferenceGpuOptions: (options: AiInferenceGpuOption[]) => void;
 
+  markGuidedHelpTopicWizardDismissed: (topicId: GuidedHelpTopicId) => void;
+
   setGeocoderInitStatus: (
     status: GeocoderInitStatus,
     error?: string,
@@ -222,6 +236,8 @@ export const createDesktopSlice: StateCreator<DesktopSlice, [["zustand/immer", n
     groupLimits: { ...DEFAULT_PIPELINE_CONCURRENCY.groupLimits },
     perPipelineGroupOverride: DEFAULT_PIPELINE_CONCURRENCY.perPipelineGroupOverride,
   },
+  guidedExperienceSettings: { ...DEFAULT_GUIDED_EXPERIENCE_SETTINGS, helpTopics: {} },
+  persistedSettingsHydrated: false,
   aiInferenceGpuOptions: [],
   faceModelDownload: {
     visible: false,
@@ -495,6 +511,18 @@ export const createDesktopSlice: StateCreator<DesktopSlice, [["zustand/immer", n
   setAiInferenceGpuOptions: (options) =>
     set((state) => {
       state.aiInferenceGpuOptions = options;
+    }),
+
+  markGuidedHelpTopicWizardDismissed: (topicId) =>
+    set((state) => {
+      const cur = state.guidedExperienceSettings.helpTopics[topicId];
+      if (cur?.helpWizardDismissed === true) {
+        return;
+      }
+      state.guidedExperienceSettings.helpTopics[topicId] = {
+        helpWizardDismissed: true,
+        dismissedAt: new Date().toISOString(),
+      };
     }),
 
   resetSimilarUntaggedCountsJob: () =>
