@@ -41,6 +41,7 @@ import { enqueueFolderDuplicateScan } from "./actions/duplicate-files-actions";
 import type { DuplicateFilesSession } from "./types/duplicate-files-session";
 import type {
   AlbumWorkspaceMode,
+  DocumentsSidebarSubSection,
   ExpandedSidebarSectionId,
   InsightsSidebarSubSection,
   MainPaneViewMode,
@@ -155,6 +156,7 @@ export function App(): ReactElement {
   const [duplicateFilesSession, setDuplicateFilesSession] = useState<DuplicateFilesSession | null>(null);
   const [duplicateFilesPage, setDuplicateFilesPage] = useState(0);
   const [insightsSubSection, setInsightsSubSection] = useState<InsightsSidebarSubSection | null>(null);
+  const [documentsSubSection, setDocumentsSubSection] = useState<DocumentsSidebarSubSection | null>(null);
   const [insightsDuplicateFilesHubOpen, setInsightsDuplicateFilesHubOpen] = useState(false);
   const [insightsFolderAnalysisHubOpen, setInsightsFolderAnalysisHubOpen] = useState(false);
   const [folderAiSummaryPathOverride, setFolderAiSummaryPathOverride] = useState<string | null>(null);
@@ -411,6 +413,10 @@ export function App(): ReactElement {
     });
   }, []);
 
+  const resetDocumentsFlow = useCallback((): void => {
+    setDocumentsSubSection(null);
+  }, []);
+
   const resetInsightsFlow = useCallback((): void => {
     setInsightsSubSection(null);
     setInsightsDuplicateFilesHubOpen(false);
@@ -421,6 +427,7 @@ export function App(): ReactElement {
   }, []);
 
   const openInsightsDuplicateFilesFlow = useCallback((): void => {
+    resetDocumentsFlow();
     closeSimilarImagesView();
     closeDuplicateFilesView();
     setFolderAiSummaryPathOverride(null);
@@ -456,9 +463,10 @@ export function App(): ReactElement {
       return;
     }
     setInsightsDuplicateFilesHubOpen(true);
-  }, [closeDuplicateFilesView, closeSimilarImagesView, libraryRoots, sidebarCollapsed, store]);
+  }, [closeDuplicateFilesView, closeSimilarImagesView, libraryRoots, resetDocumentsFlow, sidebarCollapsed, store]);
 
   const openInsightsFolderAnalysisFlow = useCallback((): void => {
+    resetDocumentsFlow();
     closeSimilarImagesView();
     closeDuplicateFilesView();
     setFolderAiSummaryPathOverride(null);
@@ -482,9 +490,10 @@ export function App(): ReactElement {
     }
     setInsightsFolderAnalysisHubOpen(true);
   }, [
-    closeDuplicateFilesView,
     closeSimilarImagesView,
+    closeDuplicateFilesView,
     libraryRoots,
+    resetDocumentsFlow,
     sidebarCollapsed,
     store,
   ]);
@@ -536,6 +545,17 @@ export function App(): ReactElement {
     [closeSimilarImagesView, folderTree],
   );
 
+  const openInvoicesReceiptsFromSidebar = useCallback((): void => {
+    closeSimilarImagesView();
+    closeDuplicateFilesView();
+    resetInsightsFlow();
+    setDocumentsSubSection("invoices-receipts");
+    setExpandedSidebarSection("documents");
+    if (sidebarCollapsed) {
+      store.getState().setSidebarCollapsed(false);
+    }
+  }, [closeDuplicateFilesView, closeSimilarImagesView, resetInsightsFlow, sidebarCollapsed, store]);
+
   const handleSidebarSectionToggle = (sectionId: string): void => {
     if (sectionId === "insights") {
       if (sidebarCollapsed) {
@@ -547,10 +567,21 @@ export function App(): ReactElement {
       return;
     }
 
+    if (sectionId === "documents") {
+      if (sidebarCollapsed) {
+        store.getState().setSidebarCollapsed(false);
+        setExpandedSidebarSection("documents");
+        return;
+      }
+      setExpandedSidebarSection((current) => (current === "documents" ? null : "documents"));
+      return;
+    }
+
     if (sectionId === "folders" || sectionId === "albums" || sectionId === "people" || sectionId === "settings") {
       closeSimilarImagesView();
       closeDuplicateFilesView();
       resetInsightsFlow();
+      resetDocumentsFlow();
       if (sectionId === "albums" && primarySidebarSection !== "albums") {
         setAlbumSearchControlsOpen(false);
       }
@@ -572,6 +603,7 @@ export function App(): ReactElement {
     closeSimilarImagesView();
     closeDuplicateFilesView();
     resetInsightsFlow();
+    resetDocumentsFlow();
     setPrimarySidebarSection("albums");
     setExpandedSidebarSection("albums");
     if (sidebarCollapsed) {
@@ -632,16 +664,18 @@ export function App(): ReactElement {
 
   const handleFindSimilar = useCallback((sourcePath: string): void => {
     resetInsightsFlow();
+    resetDocumentsFlow();
     closeDuplicateFilesView();
     setSimilarImagesSession({ sourcePath, minSimilarity: 0.9 });
     setSimilarImagesPage(0);
-  }, [closeDuplicateFilesView, resetInsightsFlow]);
+  }, [closeDuplicateFilesView, resetDocumentsFlow, resetInsightsFlow]);
 
   const handleSimilarImagesMinSimilarityChange = useCallback((minSimilarity: number): void => {
     setSimilarImagesSession((session) => (session ? { ...session, minSimilarity } : null));
     setSimilarImagesPage(0);
   }, []);
 
+  const isInvoicesReceiptsWorkspaceOpen = documentsSubSection === "invoices-receipts";
   const isPeopleSectionOpen = primarySidebarSection === "people";
   const isAlbumsSectionOpen = primarySidebarSection === "albums";
   const isInsightsDuplicateFilesHubOpen = insightsDuplicateFilesHubOpen;
@@ -660,6 +694,7 @@ export function App(): ReactElement {
         sidebarCollapsed={sidebarCollapsed}
         primarySidebarSection={primarySidebarSection}
         insightsSubSection={insightsSubSection}
+        documentsSubSection={documentsSubSection}
         expandedSidebarSection={expandedSidebarSection}
         onSectionToggle={handleSidebarSectionToggle}
         libraryRoots={libraryRoots}
@@ -675,8 +710,10 @@ export function App(): ReactElement {
         onShowAlbumList={handleShowAlbumListFromSidebar}
         onOpenInsightsDuplicateFiles={openInsightsDuplicateFilesFlow}
         onOpenInsightsFolderAnalysis={openInsightsFolderAnalysisFlow}
+        onOpenInvoicesReceipts={openInvoicesReceiptsFromSidebar}
         insightsDuplicateFilesActive={insightsSubSection === "duplicate-files"}
         insightsFolderAnalysisActive={insightsSubSection === "folder-analysis-status"}
+        invoicesReceiptsActive={isInvoicesReceiptsWorkspaceOpen}
         sidebarHighlightedSmartAlbumKind={
           isAlbumsSectionOpen && albumWorkspaceMode === "smart" ? smartAlbumRootKind : null
         }
@@ -686,6 +723,7 @@ export function App(): ReactElement {
             closeSimilarImagesView();
             closeDuplicateFilesView();
             resetInsightsFlow();
+            resetDocumentsFlow();
             await folderTree.handleSelectFolder(folderPath);
           },
           handleOpenFolderAiSummary: handleOpenFolderAiSummaryFromTree,
@@ -712,6 +750,7 @@ export function App(): ReactElement {
 
       <DesktopAppMain
         store={store}
+        isInvoicesReceiptsWorkspaceOpen={isInvoicesReceiptsWorkspaceOpen}
         isPeopleSectionOpen={isPeopleSectionOpen}
         isAlbumsSectionOpen={isAlbumsSectionOpen}
         mainPaneViewMode={mainPaneViewMode}
