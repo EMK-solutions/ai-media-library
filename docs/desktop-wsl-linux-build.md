@@ -217,6 +217,49 @@ sudo apt install -y /tmp/aimedialibrary.deb
 
 Or use the menu entry / `gtk-launch '@emkdesktop-media.desktop'` if available.
 
+### Uninstall and reinstall the `.deb` (typical workflow)
+
+**Uninstall** (removes the application binaries and menu entry; **does not** automatically wipe your library DB or caches under your home directory):
+
+```bash
+sudo apt remove ai-media-library
+```
+
+**Purge** (same as `remove`, plus any **conffiles** / maintainer data the package declares — still usually **keeps** Electron `userData` under `~/.config/` unless the package scripts remove it):
+
+```bash
+sudo apt purge ai-media-library
+```
+
+Optional cleanup of unused dependencies:
+
+```bash
+sudo apt autoremove -y
+```
+
+**Reinstall** after you built a new `.deb` (copy to `/tmp` first if you hit the `_apt` home-directory warning):
+
+```bash
+cp "/path/to/AI Media Library-"*-Linux-amd64.deb /tmp/aimedialibrary.deb
+sudo apt install -y /tmp/aimedialibrary.deb
+```
+
+If the **version number in `package.json` is unchanged** but you only replaced the file on disk, prefer:
+
+```bash
+sudo apt install --reinstall -y /tmp/aimedialibrary.deb
+```
+
+If anything is left under `/opt` (unusual after `apt remove`), you can remove it manually:
+
+```bash
+sudo rm -rf "/opt/AI Media Library"
+```
+
+**Full reset** (optional): quit the app, then delete its **userData** / runtime folders under your home (e.g. `~/.config/AI Media Library` — only if you intend to wipe settings and local DB).
+
+**AppImage:** there is no system “uninstall” — delete the old `.AppImage` and run the new file; user data stays in the same Electron profile paths as above.
+
 ### Option C — unpacked tree (no installer)
 
 ```bash
@@ -228,6 +271,7 @@ cd ~/dev/ai-media-library/apps/desktop-media/release/artifacts/linux-unpacked
 
 ## 7. Optional checks
 
+- **GLib-GObject spam** (`g_object_ref` / `G_IS_OBJECT` on **stderr**): comes from **Chromium / Electron’s GTK integration** on Linux (including WSLg). It is **not** from your app code and is generally **harmless**. You cannot remove it from the app without changing Electron or system libraries. To **see only your lines**, run with a filter, e.g. `pnpm dev 2>&1 | grep -E 'semantic-index|desktop-media dev|\\[main\\]'` (you may still miss some stderr-only lines).
 - **Disk / RAM**: native builds are heavy; if the linker is killed (`Killed`), close other apps or add WSL swap in `.wslconfig` on Windows.
 - **Help → Check for updates** in the packaged app only works when a GitHub Release includes **`latest-linux.yml`** and the matching Linux files; see [docs/ROADMAP/desktop-media-phase2-auto-update.md](ROADMAP/desktop-media-phase2-auto-update.md).
 

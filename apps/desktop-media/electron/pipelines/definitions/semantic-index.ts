@@ -109,6 +109,9 @@ export const semanticIndexDefinition: PipelineDefinition<SemanticIndexParams, Se
     for (let i = 0; i < selected.length; i++) {
       if (ctx.signal.aborted) {
         cancelled = selected.length - i;
+        logVerbose(
+          `[semantic-index][pipeline] abort after ${completed} completed, ${failed} failed; ${cancelled} remaining not started (job cancelled or queue cleared)`,
+        );
         break;
       }
       const img = selected[i]!;
