@@ -44,6 +44,9 @@ asarUnpack:
   - "**/node_modules/exiftool-vendored/**/*"
   - "**/node_modules/better-sqlite3/**/*.node"
   - "**/node_modules/onnxruntime-node/**/*"
+  # Transformers.js loads ONNX/tokenizer assets at runtime; keeping this inside app.asar
+  # breaks vision warmup on Linux packaged builds (immediate semantic-index failure).
+  - "**/@huggingface/transformers/**"
 
 afterPack: scripts/electron-builder-after-pack.mjs
 

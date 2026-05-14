@@ -184,6 +184,8 @@ chmod +x ./AI\ Media\ Library-*-Linux-x86_64.AppImage
 
 ### Option B — deb package
 
+From `release/artifacts`:
+
 ```bash
 cd ~/dev/ai-media-library/apps/desktop-media/release/artifacts
 sudo apt install -y ./*.deb
@@ -191,7 +193,29 @@ sudo apt install -y ./*.deb
 sudo apt -f install -y
 ```
 
-Then launch **AI Media Library** from the Ubuntu/WSL applications menu, or run the installed binary name shown after install (`dpkg -L` on the package if unsure).
+**Notice `N: Download is performed unsandboxed as root … _apt … Permission denied`:**  
+Your home directory is typically **not** traversable by the unprivileged **`_apt`** user (`/home/you` is often mode `750`). `apt` then skips its usual sandbox and installs as **root** anyway. Check that the package is present:
+
+```bash
+dpkg -l ai-media-library
+```
+
+If you want a **clean** `apt install` without that notice, copy the `.deb` to **`/tmp`** first (world-readable), then install:
+
+```bash
+cp "./AI Media Library-"*-Linux-amd64.deb /tmp/aimedialibrary.deb
+sudo apt install -y /tmp/aimedialibrary.deb
+```
+
+**Alternative (no `apt` sandbox involved):** `sudo dpkg -i "./AI Media Library-"*-Linux-amd64.deb` then `sudo apt -f install -y` if needed.
+
+**Launch after install:** the desktop entry and binary come from the app id (package **`ai-media-library`**). From a terminal:
+
+```bash
+"/opt/AI Media Library/@emkdesktop-media"
+```
+
+Or use the menu entry / `gtk-launch '@emkdesktop-media.desktop'` if available.
 
 ### Option C — unpacked tree (no installer)
 
