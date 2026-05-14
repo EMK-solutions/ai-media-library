@@ -5,6 +5,7 @@
   "description": "AI Media Library — desktop-first local photo library with semantic search and offline AI (Electron + React + SQLite)",
   "license": "MIT",
   "author": "EMK contributors",
+  "homepage": "https://github.com/EMK-solutions/ai-media-library",
   "main": "dist-electron/main.js",
   "scripts": {
     "rebuild:native": "node scripts/rebuild-native.mjs",
