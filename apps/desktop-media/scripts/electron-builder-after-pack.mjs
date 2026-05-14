@@ -30,6 +30,39 @@ async function removeMatchingFiles(rootDir, matcher) {
   }
 }
 
+function unpackedNodeModulesPath(appOutDir) {
+  return path.join(appOutDir, "resources", "app.asar.unpacked", "node_modules");
+}
+
+async function pruneOnnxForWindowsPack(unpackedRoot) {
+  const onnxRoot = path.join(unpackedRoot, "onnxruntime-node", "bin", "napi-v3");
+  await removePath(path.join(onnxRoot, "darwin"));
+  await removePath(path.join(onnxRoot, "linux"));
+  await removePath(path.join(onnxRoot, "win32", "arm64"));
+}
+
+async function pruneOnnxForLinuxPack(unpackedRoot) {
+  const onnxRoot = path.join(unpackedRoot, "onnxruntime-node", "bin", "napi-v3");
+  await removePath(path.join(onnxRoot, "darwin"));
+  await removePath(path.join(onnxRoot, "win32"));
+  await removePath(path.join(onnxRoot, "linux", "arm64"));
+}
+
+async function pruneBetterSqliteBuildArtifacts(unpackedRoot) {
+  const betterSqliteBuildPath = path.join(unpackedRoot, "better-sqlite3", "build");
+  await removeMatchingFiles(
+    betterSqliteBuildPath,
+    (fileName) =>
+      fileName.endsWith(".iobj") ||
+      fileName.endsWith(".ipdb") ||
+      fileName.endsWith(".pdb") ||
+      fileName.endsWith(".lib") ||
+      fileName.endsWith(".o"),
+  );
+  await removePath(path.join(betterSqliteBuildPath, "Release", "obj"));
+  await removePath(path.join(betterSqliteBuildPath, "Debug", "obj"));
+}
+
 async function embedWindowsExecutableIcon(context) {
   const productFilename = context.packager?.appInfo?.productFilename;
   if (!productFilename) {
@@ -43,32 +76,17 @@ async function embedWindowsExecutableIcon(context) {
 
 export default async function afterPack(context) {
   const isX64Arch = context.arch === 1 || context.arch === "x64";
-  if (context.electronPlatformName !== "win32" || !isX64Arch) {
+  const unpackedRoot = unpackedNodeModulesPath(context.appOutDir);
+
+  if (context.electronPlatformName === "win32" && isX64Arch) {
+    await embedWindowsExecutableIcon(context);
+    await pruneOnnxForWindowsPack(unpackedRoot);
+    await pruneBetterSqliteBuildArtifacts(unpackedRoot);
     return;
   }
 
-  await embedWindowsExecutableIcon(context);
-
-  const unpackedNodeModulesPath = path.join(
-    context.appOutDir,
-    "resources",
-    "app.asar.unpacked",
-    "node_modules",
-  );
-
-  const onnxRoot = path.join(unpackedNodeModulesPath, "onnxruntime-node", "bin", "napi-v3");
-  await removePath(path.join(onnxRoot, "darwin"));
-  await removePath(path.join(onnxRoot, "linux"));
-  await removePath(path.join(onnxRoot, "win32", "arm64"));
-
-  const betterSqliteBuildPath = path.join(unpackedNodeModulesPath, "better-sqlite3", "build");
-  await removeMatchingFiles(
-    betterSqliteBuildPath,
-    (fileName) =>
-      fileName.endsWith(".iobj") ||
-      fileName.endsWith(".ipdb") ||
-      fileName.endsWith(".pdb") ||
-      fileName.endsWith(".lib"),
-  );
-  await removePath(path.join(betterSqliteBuildPath, "Release", "obj"));
+  if (context.electronPlatformName === "linux" && isX64Arch) {
+    await pruneOnnxForLinuxPack(unpackedRoot);
+    await pruneBetterSqliteBuildArtifacts(unpackedRoot);
+  }
 }

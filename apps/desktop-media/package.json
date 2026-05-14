@@ -33,6 +33,8 @@
     "generate:icon": "node scripts/generate-app-icon.mjs",
     "clean:release": "node scripts/clean-release.mjs",
     "dist:win": "pnpm run clean:release && pnpm run build && pnpm run rebuild:native && pnpm exec electron-builder --win --x64 --config electron-builder.yml",
+    "dist:linux": "pnpm run clean:release && pnpm run build && pnpm run rebuild:native && pnpm exec electron-builder --linux --x64 --config electron-builder.yml",
+    "dist:linux:dir": "pnpm run clean:release && pnpm run build && pnpm run rebuild:native && pnpm exec electron-builder --linux --x64 --dir --config electron-builder.yml",
     "audit:release-size": "node scripts/audit-release-size.mjs"
   },
   "dependencies": {
