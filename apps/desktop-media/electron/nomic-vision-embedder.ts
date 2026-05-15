@@ -2,7 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { app } from "electron";
 import { resolveHuggingfaceModelsRoot } from "./app-paths";
+import { patchProcessReleaseForTransformersInElectronMain } from "./lib/patch-transformers-electron-main-environment";
 import { embedImageWithDecodeFallback } from "./nomic-vision-image-decode";
+
+patchProcessReleaseForTransformersInElectronMain();
 
 let visionPipelineInstance: ReturnType<typeof createVisionPipeline> | null = null;
 let textPipelineInstance: ReturnType<typeof createTextPipeline> | null = null;
