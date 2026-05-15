@@ -26,6 +26,7 @@ import { createDesktopAlbumActions } from "../actions/album-actions";
 import { PeoplePaginationBar } from "./people-pagination-bar";
 import { SemanticSearchPersonTagsBar } from "./semantic-search-person-tags-bar";
 import type { PersonTagListMeta } from "../lib/tagged-faces-tab-visible-tags";
+import type { PersonGroupListMeta } from "../lib/semantic-search-person-groups-visible";
 import { Input } from "./ui/input";
 import { useDesktopStore, useDesktopStoreApi } from "../stores/desktop-store";
 import type { AlbumWorkspaceMode } from "../types/app-types";
@@ -46,6 +47,8 @@ import {
   sanitizeAlbumYearMonthDigitsInput,
 } from "../lib/album-year-month-input";
 import { smartAlbumAutoOpenFilterPanel } from "../lib/smart-album-auto-open-filter-panel";
+import { albumFilterActiveInputClasses } from "../lib/album-filter-active-styles";
+import { cn } from "../lib/cn";
 import { EMPTY_SMART_ALBUM_FILTERS, smartAlbumSettingsToFilters, useSmartAlbums } from "./useSmartAlbums";
 
 const ALBUM_PAGE_SIZE = 24;
@@ -180,6 +183,8 @@ export function DesktopAlbumsWorkspace({
   const [smartFilterPanelOpen, setSmartFilterPanelOpen] = useState(() =>
     smartAlbumAutoOpenFilterPanel(smartAlbumRootKind),
   );
+  const [smartAlbumPersonGroupIds, setSmartAlbumPersonGroupIds] = useState<string[]>([]);
+  const [personGroupsMeta, setPersonGroupsMeta] = useState<PersonGroupListMeta[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const albumDateRangeFocusCleanupRef = useRef<(() => void) | null>(null);
@@ -215,7 +220,7 @@ export function DesktopAlbumsWorkspace({
   const selectedAlbum = albums.find((album) => album.id === selectedAlbumId) ?? null;
   const smartPlaceRequest = useMemo<SmartAlbumPlacesRequest | null>(
     () =>
-      smartAlbumRootKind === "best-of-year"
+      smartAlbumRootKind === "best-of-year" || smartAlbumRootKind === "best-of-people-group"
         ? null
         : {
             grouping:
@@ -254,10 +259,13 @@ export function DesktopAlbumsWorkspace({
     () => countActiveQuickFilters(albumQuickFilters),
     [albumQuickFilters],
   );
-  const smartFiltersActiveCount = useMemo(
-    () => countActiveSmartAlbumFilters(smartAlbumFilters),
-    [smartAlbumFilters],
-  );
+  const smartFiltersActiveCount = useMemo(() => {
+    let count = countActiveSmartAlbumFilters(smartAlbumFilters);
+    if (smartAlbumRootKind === "best-of-people-group" && smartAlbumPersonGroupIds.length > 0) {
+      count += 1;
+    }
+    return count;
+  }, [smartAlbumFilters, smartAlbumRootKind, smartAlbumPersonGroupIds.length]);
   const albumListSearchFiltersActiveCount = useMemo((): number => {
     let count = 0;
     if (titleDraft.trim() || titleFilter.trim()) count += 1;
@@ -341,7 +349,7 @@ export function DesktopAlbumsWorkspace({
           filters: smartAlbumFiltersForRpc,
         });
         setSmartPlaceCountries(result.countries);
-      } else {
+      } else if (smartAlbumRootKind !== "best-of-people-group") {
         const result = await actions.loadSmartAlbumYears({ filters: smartAlbumFiltersForRpc });
         setSmartYears(result.years);
       }
@@ -350,7 +358,7 @@ export function DesktopAlbumsWorkspace({
     } finally {
       setIsLoading(false);
     }
-  }, [actions, showingSmart, smartAlbumFiltersForRpc, smartPlaceRequest]);
+  }, [actions, showingSmart, smartAlbumFiltersForRpc, smartPlaceRequest, smartAlbumRootKind]);
 
   const loadSmartAlbumItems = useCallback(async () => {
     if (!activeSmartAlbum) {
@@ -358,39 +366,62 @@ export function DesktopAlbumsWorkspace({
       setSmartItemsTotal(0);
       return;
     }
+    if (activeSmartAlbum.kind === "best-of-people-group" && smartAlbumPersonGroupIds.length === 0) {
+      setSmartItems([]);
+      setSmartItemsTotal(0);
+      return;
+    }
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const result = activeSmartAlbum.kind === "place"
-        ? await actions.loadSmartAlbumItems({
-            kind: "place",
-            country: activeSmartAlbum.entry.country,
-            city: (() => {
-              const placeGrouping = smartPlaceRequest?.grouping ?? "year-city";
-              if (placeGrouping === "year-city" || placeGrouping === "year-area" || placeGrouping === "month-area") {
-                return (activeSmartAlbum.entry.city ?? activeSmartAlbum.entry.label ?? "").trim() || null;
-              }
-              return activeSmartAlbum.entry.leafLevel === "city" ? activeSmartAlbum.entry.city : null;
-            })(),
-            group: activeSmartAlbum.entry.group,
-            grouping: smartPlaceRequest?.grouping ?? "year-city",
-            source: smartPlaceRequest?.source ?? "gps",
-            leafLevel: activeSmartAlbum.entry.leafLevel ?? "city",
-            area1: activeSmartAlbum.entry.area1 ?? activeSmartAlbum.entry.groupParent ?? null,
-            area2: activeSmartAlbum.entry.area2 ?? activeSmartAlbum.entry.group ?? null,
-            filters: smartAlbumFiltersForRpc,
-            offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
-            limit: ALBUM_ITEMS_PAGE_SIZE,
-          })
-        : await actions.loadSmartAlbumItems({
-            kind: "best-of-year",
-            year: activeSmartAlbum.year,
-            randomize: randomizeEnabled,
-            randomCandidateLimit,
-            filters: smartAlbumFiltersForRpc,
-            offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
-            limit: ALBUM_ITEMS_PAGE_SIZE,
-          });
+      const randomOrderSeed = randomizeEnabled ? randomRefreshKey : undefined;
+      const result =
+        activeSmartAlbum.kind === "place"
+          ? await actions.loadSmartAlbumItems({
+              kind: "place",
+              country: activeSmartAlbum.entry.country,
+              city: (() => {
+                const placeGrouping = smartPlaceRequest?.grouping ?? "year-city";
+                if (
+                  placeGrouping === "year-city" ||
+                  placeGrouping === "year-area" ||
+                  placeGrouping === "month-area"
+                ) {
+                  return (activeSmartAlbum.entry.city ?? activeSmartAlbum.entry.label ?? "").trim() || null;
+                }
+                return activeSmartAlbum.entry.leafLevel === "city" ? activeSmartAlbum.entry.city : null;
+              })(),
+              group: activeSmartAlbum.entry.group,
+              grouping: smartPlaceRequest?.grouping ?? "year-city",
+              source: smartPlaceRequest?.source ?? "gps",
+              leafLevel: activeSmartAlbum.entry.leafLevel ?? "city",
+              area1: activeSmartAlbum.entry.area1 ?? activeSmartAlbum.entry.groupParent ?? null,
+              area2: activeSmartAlbum.entry.area2 ?? activeSmartAlbum.entry.group ?? null,
+              filters: smartAlbumFiltersForRpc,
+              offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
+              limit: ALBUM_ITEMS_PAGE_SIZE,
+            })
+          : activeSmartAlbum.kind === "best-of-people-group"
+            ? await actions.loadSmartAlbumItems({
+                kind: "best-of-people-group",
+                personGroupIds: smartAlbumPersonGroupIds.slice(0, 3),
+                randomize: randomizeEnabled,
+                randomCandidateLimit,
+                randomOrderSeed,
+                filters: smartAlbumFiltersForRpc,
+                offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
+                limit: ALBUM_ITEMS_PAGE_SIZE,
+              })
+            : await actions.loadSmartAlbumItems({
+                kind: "best-of-year",
+                year: activeSmartAlbum.year,
+                randomize: randomizeEnabled,
+                randomCandidateLimit,
+                randomOrderSeed,
+                filters: smartAlbumFiltersForRpc,
+                offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
+                limit: ALBUM_ITEMS_PAGE_SIZE,
+              });
       setSmartItems(result.rows);
       setSmartItemsTotal(result.totalCount);
     } catch (error) {
@@ -405,6 +436,7 @@ export function DesktopAlbumsWorkspace({
     randomizeEnabled,
     randomRefreshKey,
     smartAlbumFiltersForRpc,
+    smartAlbumPersonGroupIds,
     smartItemsPage,
     smartPlaceRequest,
   ]);
@@ -423,6 +455,17 @@ export function DesktopAlbumsWorkspace({
           label: tag.label,
           pinned: tag.pinned,
           taggedFaceCount: tag.taggedFaceCount,
+        })),
+      );
+    });
+  }, []);
+
+  useEffect(() => {
+    void window.desktopApi.listPersonGroups().then((groups) => {
+      setPersonGroupsMeta(
+        groups.map((g) => ({
+          id: g.id,
+          label: g.name,
         })),
       );
     });
@@ -460,11 +503,16 @@ export function DesktopAlbumsWorkspace({
     if (!showingSmart) {
       return;
     }
-    setActiveSmartAlbum(null);
     setExpandedSmartCountries([]);
     setExpandedSmartGroups([]);
     setSmartItemsPage(0);
+    setSmartAlbumPersonGroupIds([]);
     setSmartFilterPanelOpen(smartAlbumAutoOpenFilterPanel(smartAlbumRootKind));
+    if (smartAlbumRootKind === "best-of-people-group") {
+      setActiveSmartAlbum({ kind: "best-of-people-group" });
+      return;
+    }
+    setActiveSmartAlbum(null);
     void loadSmartRoots();
   }, [showingSmart, smartAlbumRootKind, yearAreaSubView]);
 
@@ -506,6 +554,10 @@ export function DesktopAlbumsWorkspace({
   }, [smartAlbumFiltersForRpc]);
 
   useEffect(() => {
+    setSmartItemsPage(0);
+  }, [smartAlbumPersonGroupIds]);
+
+  useEffect(() => {
     if (!albumQuickFiltersOpen) {
       return;
     }
@@ -536,6 +588,18 @@ export function DesktopAlbumsWorkspace({
     });
   };
 
+  const toggleSmartPersonGroup = (groupId: string): void => {
+    setSmartAlbumPersonGroupIds((current) => {
+      if (current.includes(groupId)) {
+        return current.filter((id) => id !== groupId);
+      }
+      if (current.length >= 3) {
+        return current;
+      }
+      return [...current, groupId];
+    });
+  };
+
   const handleCreate = async (): Promise<void> => {
     const title = newTitle.trim();
     if (!title) return;
@@ -555,14 +619,25 @@ export function DesktopAlbumsWorkspace({
     onModeChange("list");
   };
 
-  const smartRootTitle = smartAlbumRootKind === "best-of-year" ? "Best of Year" : smartPlaceRootTitle;
-  const activeSmartTitle = activeSmartAlbum?.kind === "place"
-    ? formatActiveSmartPlacePath(activeSmartAlbum.entry)
-    : activeSmartAlbum?.kind === "best-of-year"
-      ? `Best of ${activeSmartAlbum.year}`
-      : smartRootTitle;
+  const smartRootTitle =
+    smartAlbumRootKind === "best-of-year"
+      ? "Best of Year"
+      : smartAlbumRootKind === "best-of-people-group"
+        ? "Best of People group"
+        : smartPlaceRootTitle;
+  const activeSmartTitle =
+    activeSmartAlbum?.kind === "place"
+      ? formatActiveSmartPlacePath(activeSmartAlbum.entry)
+      : activeSmartAlbum?.kind === "best-of-year"
+        ? `Best of ${activeSmartAlbum.year}`
+        : activeSmartAlbum?.kind === "best-of-people-group"
+          ? "Best of People group"
+          : smartRootTitle;
 
   const handleBackToSmartRoot = (): void => {
+    if (smartAlbumRootKind === "best-of-people-group") {
+      return;
+    }
     setActiveSmartAlbum(null);
     setSmartItemsPage(0);
   };
@@ -634,13 +709,19 @@ export function DesktopAlbumsWorkspace({
                 >
                   <X size={16} aria-hidden="true" />
                 </button>
-                <div className="mt-2 flex flex-wrap items-start gap-x-4 gap-y-3 [&_input]:border-ai-search-border [&_input:not(:placeholder-shown):not(:focus)]:border-ai-search-accent [&_input]:bg-ai-search-control [&_input]:text-ai-search-text [&_input]:placeholder:text-ai-search-muted/75 [&_input]:focus:border-ai-search-accent [&_input]:focus:ring-ai-search-accent/45">
+                <div className="mt-2 flex flex-wrap items-start gap-x-4 gap-y-3">
                   <label className={`grid min-w-0 gap-1 ${ALBUM_LIST_TITLE_INPUT_MAX_CLASS}`}>
                     <span className="text-xs font-medium text-ai-search-muted">Title</span>
                     <Input
                       value={titleDraft}
                       onChange={(event) => setTitleDraft(event.target.value)}
                       placeholder="Album title"
+                      className={cn(
+                        "border-ai-search-border bg-ai-search-control text-ai-search-text placeholder:text-ai-search-muted/75",
+                        titleDraft.trim() || titleFilter.trim()
+                          ? albumFilterActiveInputClasses
+                          : "focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
+                      )}
                     />
                   </label>
                   <label className={`grid min-w-0 gap-1 ${ALBUM_LIST_LOCATION_INPUT_MAX_CLASS}`}>
@@ -649,6 +730,12 @@ export function DesktopAlbumsWorkspace({
                       value={locationDraft}
                       onChange={(event) => setLocationDraft(event.target.value)}
                       placeholder="Country, area, or city"
+                      className={cn(
+                        "border-ai-search-border bg-ai-search-control text-ai-search-text placeholder:text-ai-search-muted/75",
+                        locationDraft.trim() || locationFilter.trim()
+                          ? albumFilterActiveInputClasses
+                          : "focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
+                      )}
                     />
                   </label>
                   <div ref={albumDateRangeFieldShellRefCallback} className="flex min-w-0 flex-col gap-1">
@@ -664,7 +751,12 @@ export function DesktopAlbumsWorkspace({
                           inputMode="numeric"
                           autoComplete="off"
                           spellCheck={false}
-                          className="w-[13ch] max-w-full min-w-0 font-mono text-sm tabular-nums"
+                          className={cn(
+                            "w-[13ch] max-w-full min-w-0 border-ai-search-border bg-ai-search-control font-mono text-sm tabular-nums text-ai-search-text placeholder:text-ai-search-muted/75",
+                            yearMonthFromDraft.trim() || yearMonthFromFilter.trim()
+                              ? albumFilterActiveInputClasses
+                              : "focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
+                          )}
                         />
                       </label>
                       <label className="grid w-fit max-w-full gap-1">
@@ -678,7 +770,12 @@ export function DesktopAlbumsWorkspace({
                           inputMode="numeric"
                           autoComplete="off"
                           spellCheck={false}
-                          className="w-[13ch] max-w-full min-w-0 font-mono text-sm tabular-nums"
+                          className={cn(
+                            "w-[13ch] max-w-full min-w-0 border-ai-search-border bg-ai-search-control font-mono text-sm tabular-nums text-ai-search-text placeholder:text-ai-search-muted/75",
+                            yearMonthToDraft.trim() || yearMonthToFilter.trim()
+                              ? albumFilterActiveInputClasses
+                              : "focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
+                          )}
                         />
                       </label>
                     </div>
@@ -718,14 +815,28 @@ export function DesktopAlbumsWorkspace({
         ) : null}
         {showingSmart &&
         (smartAlbumRootKind === "best-of-year" ||
+          smartAlbumRootKind === "best-of-people-group" ||
           smartAlbumRootKind === "country-area-city" ||
           smartAlbumRootKind === "country-year-area") &&
         showSmartFilterPanel ? (
           <BestOfYearFiltersPanel
             filters={smartAlbumFilters}
             personTags={personTags}
+            personGroups={smartAlbumRootKind === "best-of-people-group" ? personGroupsMeta : undefined}
+            selectedPersonGroupIds={
+              smartAlbumRootKind === "best-of-people-group" ? smartAlbumPersonGroupIds : undefined
+            }
+            onTogglePersonGroup={
+              smartAlbumRootKind === "best-of-people-group" ? toggleSmartPersonGroup : undefined
+            }
+            hidePersonTags={smartAlbumRootKind === "best-of-people-group"}
             onClose={() => setSmartFilterPanelOpen(false)}
-            onClear={() => setSmartAlbumFilters(EMPTY_SMART_ALBUM_FILTERS)}
+            onClear={() => {
+              setSmartAlbumFilters(EMPTY_SMART_ALBUM_FILTERS);
+              if (smartAlbumRootKind === "best-of-people-group") {
+                setSmartAlbumPersonGroupIds([]);
+              }
+            }}
             onFiltersChange={setSmartAlbumFilters}
             onTogglePersonTag={toggleSmartFilterPersonTag}
           />
@@ -763,9 +874,24 @@ export function DesktopAlbumsWorkspace({
           onActiveSmartAlbumChange={setActiveSmartAlbum}
           onSmartItemsPageChange={setSmartItemsPage}
           onFindSimilar={onFindSimilar}
+          emptyAlbumMessage={
+            smartAlbumRootKind === "best-of-people-group" && smartAlbumPersonGroupIds.length === 0
+              ? "Please select a people group"
+              : undefined
+          }
+          emptyAlbumMessageEmphasis={
+            smartAlbumRootKind === "best-of-people-group" && smartAlbumPersonGroupIds.length === 0
+          }
+          thumbScrollPaddingClass={
+            activeSmartAlbum != null
+              ? activeSmartAlbum.kind === "best-of-year" || activeSmartAlbum.kind === "best-of-people-group"
+                ? "px-2 pt-2 sm:px-3"
+                : "px-4 pt-2"
+              : undefined
+          }
         />
       ) : showingCreate ? null : showingDetail ? (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <DesktopAlbumContentGrid
             store={store}
             albumId={selectedAlbum.id}

@@ -12,9 +12,10 @@ describe("smartAlbumAutoOpenFilterPanel", () => {
     });
   });
 
-  it("opens filters only for Best of Year by default", () => {
+  it("opens filters for Best of presets by default", () => {
     expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["country-year-area"]).toBe(false);
     expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["country-area-city"]).toBe(false);
     expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["best-of-year"]).toBe(true);
+    expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["best-of-people-group"]).toBe(true);
   });
 });

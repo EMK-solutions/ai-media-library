@@ -82,7 +82,8 @@ export type SmartAlbumRootKind =
   | "country-year-area"
   | "country-area-city"
   | "ai-countries"
-  | "best-of-year";
+  | "best-of-year"
+  | "best-of-people-group";
 
 /** Sub-view inside merged country date/place smart album (toolbar order: month, year+area, year hierarchy). */
 export type SmartAlbumYearAreaSubView = "month-area" | "year-area" | "year-city";
@@ -201,4 +202,20 @@ export type SmartAlbumItemsRequest =
       limit?: number;
       randomize?: boolean;
       randomCandidateLimit?: number;
+      /**
+       * When `randomize` is true, used for stable ordering across pages until the client bumps the seed
+       * (e.g. "Refresh randomized order").
+       */
+      randomOrderSeed?: number;
+    }
+  | {
+      kind: "best-of-people-group";
+      /** 1–3 person group ids; empty means no results. */
+      personGroupIds: string[];
+      filters?: SmartAlbumFilters;
+      offset?: number;
+      limit?: number;
+      randomize?: boolean;
+      randomCandidateLimit?: number;
+      randomOrderSeed?: number;
     };

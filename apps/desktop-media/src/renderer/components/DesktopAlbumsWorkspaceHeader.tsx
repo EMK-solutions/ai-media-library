@@ -6,6 +6,7 @@ import type { DesktopStore } from "../stores/desktop-store";
 import { Input } from "./ui/input";
 import { QuickFiltersMenu } from "./QuickFiltersMenu";
 import { ToolbarIconButton } from "./ToolbarIconButton";
+import { cn } from "../lib/cn";
 
 export function DesktopAlbumsWorkspaceHeader({
   showingSmart,
@@ -44,7 +45,7 @@ export function DesktopAlbumsWorkspaceHeader({
   showingCreate: boolean;
   activeSmartTitle: string;
   selectedAlbumTitle: string | null;
-  activeSmartAlbumKind: "place" | "best-of-year" | null;
+  activeSmartAlbumKind: "place" | "best-of-year" | "best-of-people-group" | null;
   smartAlbumRootKind: SmartAlbumRootKind;
   smartFiltersOpen: boolean;
   smartFiltersActiveCount: number;
@@ -74,7 +75,7 @@ export function DesktopAlbumsWorkspaceHeader({
     <div className="border-b border-border bg-card/90 p-4 backdrop-blur">
       {showingSmart ? (
         <div className="flex min-w-0 items-center gap-2">
-          {activeSmartAlbumKind ? (
+          {activeSmartAlbumKind === "place" || activeSmartAlbumKind === "best-of-year" ? (
             <button
               type="button"
               onClick={onBackToSmartRoot}
@@ -94,6 +95,7 @@ export function DesktopAlbumsWorkspaceHeader({
             </p>
           </div>
           {smartAlbumRootKind === "best-of-year" ||
+          smartAlbumRootKind === "best-of-people-group" ||
           smartAlbumRootKind === "country-area-city" ||
           smartAlbumRootKind === "country-year-area" ? (
             <div className="flex items-center gap-2">
@@ -107,14 +109,19 @@ export function DesktopAlbumsWorkspaceHeader({
               >
                 <Filter size={16} aria-hidden="true" />
               </ToolbarIconButton>
-              {smartAlbumRootKind === "best-of-year" && activeSmartAlbumKind === "best-of-year" ? (
+              {(smartAlbumRootKind === "best-of-year" && activeSmartAlbumKind === "best-of-year") ||
+              (smartAlbumRootKind === "best-of-people-group" &&
+                activeSmartAlbumKind === "best-of-people-group") ? (
                 <>
                   <button
                     type="button"
                     onClick={() => onRandomizeEnabledChange(!randomizeEnabled)}
-                    className={`inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted ${
-                      randomizeEnabled ? "bg-primary/10 text-foreground" : ""
-                    }`}
+                    className={cn(
+                      "inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm shadow-none",
+                      randomizeEnabled
+                        ? "border-[#445484] bg-[#1f2740] text-foreground"
+                        : "border-input bg-secondary text-foreground",
+                    )}
                     aria-pressed={randomizeEnabled}
                   >
                     <Shuffle size={16} aria-hidden="true" />
@@ -123,7 +130,12 @@ export function DesktopAlbumsWorkspaceHeader({
                   <button
                     type="button"
                     onClick={onRandomizeRefresh}
-                    className="inline-flex size-9 items-center justify-center rounded-md border border-border hover:bg-muted disabled:opacity-50"
+                    className={cn(
+                      "inline-flex size-8 shrink-0 items-center justify-center rounded-md border shadow-none disabled:opacity-50",
+                      randomizeEnabled
+                        ? "border-[#445484] bg-[#1f2740] text-foreground"
+                        : "border-input bg-secondary text-foreground",
+                    )}
                     aria-label="Refresh randomized order"
                     title="Refresh randomized order"
                     disabled={!randomizeEnabled}

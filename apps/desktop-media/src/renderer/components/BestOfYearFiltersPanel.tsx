@@ -2,9 +2,13 @@ import { type KeyboardEvent, type ReactElement, useEffect, useState } from "reac
 import { X } from "lucide-react";
 import type { SmartAlbumFilters } from "@emk/shared-contracts";
 import type { PersonTagListMeta } from "../lib/tagged-faces-tab-visible-tags";
+import { albumFilterActiveInputClasses } from "../lib/album-filter-active-styles";
 import { SMART_ALBUM_AI_SEARCH_QUERY_DEBOUNCE_MS } from "../lib/smart-album-search-ui";
+import { cn } from "../lib/cn";
 import { Input } from "./ui/input";
 import { SemanticSearchPersonTagsBar } from "./semantic-search-person-tags-bar";
+import { SemanticSearchPersonGroupsBar } from "./semantic-search-person-groups-bar";
+import type { PersonGroupListMeta } from "../lib/semantic-search-person-groups-visible";
 import {
   aestheticMinToAiRatingStars,
   aiRatingStarsToAestheticMin,
@@ -14,6 +18,11 @@ import {
 export function BestOfYearFiltersPanel({
   filters,
   personTags,
+  personGroups,
+  selectedPersonGroupIds,
+  onTogglePersonGroup,
+  /** When true, hides person tags; unconfirmed-faces control lives under people groups. */
+  hidePersonTags,
   onClose,
   onClear,
   onFiltersChange,
@@ -21,15 +30,27 @@ export function BestOfYearFiltersPanel({
 }: {
   filters: SmartAlbumFilters;
   personTags: PersonTagListMeta[];
+  /** When set, shows the people-groups chip bar (separate from person tags). */
+  personGroups?: PersonGroupListMeta[];
+  selectedPersonGroupIds?: readonly string[];
+  onTogglePersonGroup?: (groupId: string) => void;
+  hidePersonTags?: boolean;
   onClose: () => void;
   onClear: () => void;
   onFiltersChange: (updater: (current: SmartAlbumFilters) => SmartAlbumFilters) => void;
   onTogglePersonTag: (tagId: string) => void;
 }): ReactElement {
   const selectedPersonTagIds = filters.personTagIds ?? [];
+  const selectedGroupIds = selectedPersonGroupIds ?? [];
   const includeUnconfirmedFaces = filters.includeUnconfirmedFaces === true;
+  const peopleGroupOnlyLayout = hidePersonTags === true && personGroups !== undefined && onTogglePersonGroup;
+  const canToggleUnconfirmed = peopleGroupOnlyLayout
+    ? selectedGroupIds.length > 0
+    : selectedPersonTagIds.length > 0 || selectedGroupIds.length > 0;
   const [draftQuery, setDraftQuery] = useState(() => filters.query ?? "");
   const draftTrimmed = draftQuery.trim();
+  const queryCommittedTrimmed = (filters.query ?? "").trim();
+  const aiPromptActive = draftTrimmed.length > 0 || queryCommittedTrimmed.length > 0;
   const showPromptClear = draftTrimmed.length > 0;
 
   useEffect(() => {
@@ -67,13 +88,18 @@ export function BestOfYearFiltersPanel({
       <div className="flex w-full min-w-0 flex-wrap items-start gap-x-3 gap-y-2">
         <div className="flex min-w-0 w-max max-w-full flex-col gap-2">
           <div className="flex w-full min-w-0 items-center gap-1.5">
-            <div className="min-w-0 flex-1 [&_input]:border-ai-search-border [&_input]:bg-ai-search-control [&_input]:text-ai-search-text [&_input]:placeholder:text-ai-search-muted/75 [&_input]:focus:border-ai-search-accent [&_input]:focus:ring-ai-search-accent/45">
+            <div className="min-w-0 flex-1">
               <Input
                 value={draftQuery}
                 onChange={(event) => setDraftQuery(event.target.value)}
                 onKeyDown={handlePromptKeyDown}
                 placeholder="AI search prompt (optional)"
-                className="h-9 min-w-0 w-full"
+                className={cn(
+                  "h-9 min-w-0 w-full border-ai-search-border bg-ai-search-control text-ai-search-text placeholder:text-ai-search-muted/75",
+                  aiPromptActive
+                    ? albumFilterActiveInputClasses
+                    : "focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
+                )}
               />
             </div>
             {showPromptClear ? (
@@ -132,29 +158,54 @@ export function BestOfYearFiltersPanel({
       </div>
 
       <div className="mt-2">
-        <SemanticSearchPersonTagsBar
-          tagsMeta={personTags}
-          selectedTagIds={selectedPersonTagIds}
-          onToggleTag={onTogglePersonTag}
-        />
-        <label
-          className="mt-2 flex cursor-pointer items-center gap-1.5 text-xs text-ai-search-text/80 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
-          title={selectedPersonTagIds.length === 0 ? "Select at least one person tag" : undefined}
-        >
-          <input
-            type="checkbox"
-            className="cursor-pointer accent-ai-search-accent"
-            checked={includeUnconfirmedFaces}
-            disabled={selectedPersonTagIds.length === 0}
-            onChange={(event) =>
-              onFiltersChange((current) => ({
-                ...current,
-                includeUnconfirmedFaces: event.target.checked,
-              }))
-            }
+        {!hidePersonTags ? (
+          <SemanticSearchPersonTagsBar
+            tagsMeta={personTags}
+            selectedTagIds={selectedPersonTagIds}
+            onToggleTag={onTogglePersonTag}
           />
-          <span>Include unconfirmed similar faces</span>
-        </label>
+        ) : null}
+        {!peopleGroupOnlyLayout ? (
+          <label
+            className="mt-2 flex cursor-pointer items-center gap-1.5 text-xs text-ai-search-text/80 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
+            title={!canToggleUnconfirmed ? "Select at least one person tag or people group" : undefined}
+          >
+            <input
+              type="checkbox"
+              className="cursor-pointer accent-ai-search-accent"
+              checked={includeUnconfirmedFaces}
+              disabled={!canToggleUnconfirmed}
+              onChange={(event) =>
+                onFiltersChange((current) => ({
+                  ...current,
+                  includeUnconfirmedFaces: event.target.checked,
+                }))
+              }
+            />
+            <span>Include unconfirmed similar faces</span>
+          </label>
+        ) : null}
+        {personGroups !== undefined && onTogglePersonGroup ? (
+          <SemanticSearchPersonGroupsBar
+            groupsMeta={personGroups}
+            selectedGroupIds={selectedGroupIds}
+            maxSelected={3}
+            onToggleGroup={onTogglePersonGroup}
+            suppressTopDivider={hidePersonTags === true}
+            warnNoGroupSelected={peopleGroupOnlyLayout && selectedGroupIds.length === 0}
+            includeUnconfirmedFaces={peopleGroupOnlyLayout ? includeUnconfirmedFaces : undefined}
+            onIncludeUnconfirmedFacesChange={
+              peopleGroupOnlyLayout
+                ? (checked) =>
+                    onFiltersChange((current) => ({
+                      ...current,
+                      includeUnconfirmedFaces: checked,
+                    }))
+                : undefined
+            }
+            includeUnconfirmedDisabled={peopleGroupOnlyLayout ? !canToggleUnconfirmed : false}
+          />
+        ) : null}
       </div>
     </section>
   );

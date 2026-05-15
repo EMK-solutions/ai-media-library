@@ -40,6 +40,9 @@ export function SmartAlbumsWorkspace({
   onActiveSmartAlbumChange,
   onSmartItemsPageChange,
   onFindSimilar,
+  emptyAlbumMessage,
+  emptyAlbumMessageEmphasis,
+  thumbScrollPaddingClass,
 }: {
   isLoading: boolean;
   activeSmartAlbum: ActiveSmartAlbum;
@@ -66,54 +69,70 @@ export function SmartAlbumsWorkspace({
   onActiveSmartAlbumChange: (album: ActiveSmartAlbum) => void;
   onSmartItemsPageChange: (page: number) => void;
   onFindSimilar?: (filePath: string) => void;
+  emptyAlbumMessage?: string;
+  /** Larger amber copy for guided empty states (e.g. Best of People group). */
+  emptyAlbumMessageEmphasis?: boolean;
+  /** Horizontal padding for thumb/list scroll area inside smart album detail (viewport-right scrollbar). */
+  thumbScrollPaddingClass?: string;
 }): ReactElement {
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-4">
-      {isLoading ? <div className="text-sm text-muted-foreground">Loading smart albums...</div> : null}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {isLoading ? <div className="px-4 pt-4 text-sm text-muted-foreground">Loading smart albums...</div> : null}
       {!activeSmartAlbum ? (
-        smartPlaceRequest ? (
-          smartPlaceCountries.length === 0 && !isLoading ? (
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          {smartPlaceRequest ? (
+            smartPlaceCountries.length === 0 && !isLoading ? (
+              <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+                {smartPlaceRequest.source === "gps"
+                  ? "No GPS countries found yet. Run metadata scan with GPS location detection to generate country smart albums."
+                  : "No non-GPS country-like locations found yet."}
+              </div>
+            ) : (
+              <SmartPlaceTree
+                showYearAreaSubviewBar={smartAlbumRootKind === "country-year-area"}
+                yearAreaSubView={yearAreaSubView}
+                onYearAreaSubViewChange={onYearAreaSubViewChange}
+                smartPlaceRequest={smartPlaceRequest}
+                smartPlaceCountries={smartPlaceCountries}
+                expandedSmartCountries={expandedSmartCountries}
+                expandedSmartGroups={expandedSmartGroups}
+                smartPlaceGroupLabel={smartPlaceGroupLabel}
+                smartPlaceEntryLabel={smartPlaceEntryLabel}
+                smartPlaceHierarchyLevels={smartPlaceHierarchyLevels}
+                onToggleCountry={onToggleCountry}
+                onToggleGroup={onToggleGroup}
+                onSmartPlaceHierarchyLevelsChange={onSmartPlaceHierarchyLevelsChange}
+                onActiveSmartAlbumChange={onActiveSmartAlbumChange}
+              />
+            )
+          ) : smartAlbumRootKind === "best-of-people-group" ? (
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-              {smartPlaceRequest.source === "gps"
-                ? "No GPS countries found yet. Run metadata scan with GPS location detection to generate country smart albums."
-                : "No non-GPS country-like locations found yet."}
+              Loading Best of People group…
+            </div>
+          ) : smartYears.length === 0 && !isLoading ? (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+              No dated media found yet. Run metadata scan to generate Best of Year smart albums.
             </div>
           ) : (
-            <SmartPlaceTree
-              showYearAreaSubviewBar={smartAlbumRootKind === "country-year-area"}
-              yearAreaSubView={yearAreaSubView}
-              onYearAreaSubViewChange={onYearAreaSubViewChange}
-              smartPlaceRequest={smartPlaceRequest}
-              smartPlaceCountries={smartPlaceCountries}
-              expandedSmartCountries={expandedSmartCountries}
-              expandedSmartGroups={expandedSmartGroups}
-              smartPlaceGroupLabel={smartPlaceGroupLabel}
-              smartPlaceEntryLabel={smartPlaceEntryLabel}
-              smartPlaceHierarchyLevels={smartPlaceHierarchyLevels}
-              onToggleCountry={onToggleCountry}
-              onToggleGroup={onToggleGroup}
-              onSmartPlaceHierarchyLevelsChange={onSmartPlaceHierarchyLevelsChange}
-              onActiveSmartAlbumChange={onActiveSmartAlbumChange}
-            />
-          )
-        ) : smartYears.length === 0 && !isLoading ? (
-          <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-            No dated media found yet. Run metadata scan to generate Best of Year smart albums.
-          </div>
-        ) : (
-          <SmartAlbumBestOfYearCards years={smartYears} onActiveSmartAlbumChange={onActiveSmartAlbumChange} />
-        )
+            <SmartAlbumBestOfYearCards years={smartYears} onActiveSmartAlbumChange={onActiveSmartAlbumChange} />
+          )}
+        </div>
       ) : (
-        <DesktopAlbumContentGrid
-          store={store}
-          albumItems={smartItems}
-          albumItemsPage={smartItemsPage}
-          albumItemsTotal={smartItemsTotal}
-          quickFilters={quickFilters}
-          viewMode={viewMode}
-          onAlbumItemsPageChange={onSmartItemsPageChange}
-          onFindSimilar={onFindSimilar}
-        />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <DesktopAlbumContentGrid
+            store={store}
+            albumItems={smartItems}
+            albumItemsPage={smartItemsPage}
+            albumItemsTotal={smartItemsTotal}
+            quickFilters={quickFilters}
+            viewMode={viewMode}
+            onAlbumItemsPageChange={onSmartItemsPageChange}
+            onFindSimilar={onFindSimilar}
+            emptyAlbumMessage={emptyAlbumMessage}
+            emptyAlbumMessageEmphasis={emptyAlbumMessageEmphasis}
+            thumbScrollPaddingClass={thumbScrollPaddingClass}
+          />
+        </div>
       )}
     </div>
   );
