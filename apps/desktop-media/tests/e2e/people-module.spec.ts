@@ -10,13 +10,16 @@ test.describe("People module", () => {
     await expect(mainWindow.getByText("YYYY-MM-DD", { exact: true })).toBeVisible();
   });
 
-  test("People onboarding opens from help and shows first slide", async ({ mainWindow }) => {
+  test("People help opens from Tagged faces header and shows visual overview slide", async ({
+    mainWindow,
+  }) => {
     await mainWindow.getByRole("complementary").getByRole("button", { name: "People" }).click();
-    await mainWindow.getByRole("button", { name: "Tagging & birth dates" }).click();
-    await expect(mainWindow.getByRole("heading", { name: "People tags" })).toBeVisible();
+    await mainWindow.getByRole("button", { name: "Tagged faces" }).click();
+    await mainWindow.getByRole("button", { name: "People & faces overview" }).click();
     await expect(
-      mainWindow.getByText("Organize photos around the people who matter", { exact: true }),
+      mainWindow.getByRole("heading", { name: "People tags", exact: true }),
     ).toBeVisible();
+    await expect(mainWindow.getByText("Run face detection", { exact: true })).toBeVisible();
   });
 
   test("Add person reveals inline row with name field", async ({ mainWindow }) => {
