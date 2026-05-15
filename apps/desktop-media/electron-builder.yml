@@ -44,6 +44,10 @@ asarUnpack:
   - "**/node_modules/exiftool-vendored/**/*"
   - "**/node_modules/better-sqlite3/**/*.node"
   - "**/node_modules/onnxruntime-node/**/*"
+  # Sharp uses platform packages under @img. The native .node can be unpacked
+  # by the generic rule above, but libvips ships as .so files that dlopen
+  # cannot read from app.asar.
+  - "**/node_modules/@img/sharp-*/**/*"
   # Transformers.js loads ONNX/tokenizer assets at runtime; keeping this inside app.asar
   # breaks vision warmup on Linux packaged builds (immediate semantic-index failure).
   - "**/@huggingface/transformers/**"

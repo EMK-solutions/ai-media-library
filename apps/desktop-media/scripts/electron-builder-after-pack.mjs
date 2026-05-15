@@ -6,6 +6,15 @@ async function removePath(targetPath) {
   await fs.rm(targetPath, { recursive: true, force: true });
 }
 
+async function pathExists(targetPath) {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function removeMatchingFiles(rootDir, matcher) {
   const stack = [rootDir];
   while (stack.length > 0) {
@@ -28,6 +37,31 @@ async function removeMatchingFiles(rootDir, matcher) {
       }
     }
   }
+}
+
+async function containsFileMatching(rootDir, matcher) {
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let entries = [];
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (matcher(entry.name)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function unpackedNodeModulesPath(appOutDir) {
@@ -63,6 +97,25 @@ async function pruneBetterSqliteBuildArtifacts(unpackedRoot) {
   await removePath(path.join(betterSqliteBuildPath, "Debug", "obj"));
 }
 
+async function assertLinuxSharpLibvipsUnpacked(unpackedRoot) {
+  const libvipsPackageRoot = path.join(unpackedRoot, "@img", "sharp-libvips-linux-x64");
+  if (!(await pathExists(libvipsPackageRoot))) {
+    throw new Error(
+      `Missing Sharp libvips runtime package in app.asar.unpacked: ${libvipsPackageRoot}`,
+    );
+  }
+
+  const hasLibvips = await containsFileMatching(
+    libvipsPackageRoot,
+    (fileName) => fileName.startsWith("libvips-cpp.so"),
+  );
+  if (!hasLibvips) {
+    throw new Error(
+      `Missing libvips-cpp.so in Sharp libvips runtime package: ${libvipsPackageRoot}`,
+    );
+  }
+}
+
 async function embedWindowsExecutableIcon(context) {
   const productFilename = context.packager?.appInfo?.productFilename;
   if (!productFilename) {
@@ -88,5 +141,6 @@ export default async function afterPack(context) {
   if (context.electronPlatformName === "linux" && isX64Arch) {
     await pruneOnnxForLinuxPack(unpackedRoot);
     await pruneBetterSqliteBuildArtifacts(unpackedRoot);
+    await assertLinuxSharpLibvipsUnpacked(unpackedRoot);
   }
 }
