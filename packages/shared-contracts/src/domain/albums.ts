@@ -83,6 +83,7 @@ export type SmartAlbumRootKind =
   | "country-area-city"
   | "ai-countries"
   | "best-of-year"
+  | "best-of-person-people"
   | "best-of-people-group";
 
 /** Sub-view inside merged country date/place smart album (toolbar order: month, year+area, year hierarchy). */
@@ -102,6 +103,11 @@ export const DEFAULT_SMART_ALBUM_EXCLUDED_IMAGE_CATEGORIES = [
 
 export interface SmartAlbumFilters {
   query?: string;
+  /**
+   * Substring match on media item location fields (country, city, areas, place, location name).
+   * Same semantics as album list `locationQuery` but applied directly to catalog rows.
+   */
+  locationQuery?: string;
   personTagIds?: string[];
   includeUnconfirmedFaces?: boolean;
   starRatingMin?: number;
@@ -212,6 +218,17 @@ export type SmartAlbumItemsRequest =
       kind: "best-of-people-group";
       /** 1–3 person group ids; empty means no results. */
       personGroupIds: string[];
+      filters?: SmartAlbumFilters;
+      offset?: number;
+      limit?: number;
+      randomize?: boolean;
+      randomCandidateLimit?: number;
+      randomOrderSeed?: number;
+    }
+  | {
+      kind: "best-of-person-people";
+      /** 1–20 person tag ids (server caps); empty means no results. `filters.personTagIds` must not duplicate. */
+      personTagIds: string[];
       filters?: SmartAlbumFilters;
       offset?: number;
       limit?: number;

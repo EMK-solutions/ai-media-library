@@ -45,7 +45,7 @@ export function DesktopAlbumsWorkspaceHeader({
   showingCreate: boolean;
   activeSmartTitle: string;
   selectedAlbumTitle: string | null;
-  activeSmartAlbumKind: "place" | "best-of-year" | "best-of-people-group" | null;
+  activeSmartAlbumKind: "place" | "best-of-year" | "best-of-person-people" | "best-of-people-group" | null;
   smartAlbumRootKind: SmartAlbumRootKind;
   smartFiltersOpen: boolean;
   smartFiltersActiveCount: number;
@@ -95,6 +95,7 @@ export function DesktopAlbumsWorkspaceHeader({
             </p>
           </div>
           {smartAlbumRootKind === "best-of-year" ||
+          smartAlbumRootKind === "best-of-person-people" ||
           smartAlbumRootKind === "best-of-people-group" ||
           smartAlbumRootKind === "country-area-city" ||
           smartAlbumRootKind === "country-year-area" ? (
@@ -111,7 +112,9 @@ export function DesktopAlbumsWorkspaceHeader({
               </ToolbarIconButton>
               {(smartAlbumRootKind === "best-of-year" && activeSmartAlbumKind === "best-of-year") ||
               (smartAlbumRootKind === "best-of-people-group" &&
-                activeSmartAlbumKind === "best-of-people-group") ? (
+                activeSmartAlbumKind === "best-of-people-group") ||
+              (smartAlbumRootKind === "best-of-person-people" &&
+                activeSmartAlbumKind === "best-of-person-people") ? (
                 <>
                   <button
                     type="button"

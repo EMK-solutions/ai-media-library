@@ -16,6 +16,7 @@ const UI_TEXT = {
   countryYearArea: "Country > Year > Area",
   countryAreaCity: "Country > Area > City",
   bestOfYear: "Best of Year",
+  bestOfPersonPeople: "Best of Person / People",
   bestOfPeopleGroup: "Best of People group",
 } as const;
 
@@ -219,6 +220,13 @@ export function DesktopSidebarAlbumsSection({
                 className={smartAlbumRowClassName(highlightedSmartAlbumKind === "best-of-year")}
               >
                 {UI_TEXT.bestOfYear}
+              </button>
+              <button
+                type="button"
+                onClick={() => selectSmartAlbum("best-of-person-people")}
+                className={smartAlbumRowClassName(highlightedSmartAlbumKind === "best-of-person-people")}
+              >
+                {UI_TEXT.bestOfPersonPeople}
               </button>
               <button
                 type="button"

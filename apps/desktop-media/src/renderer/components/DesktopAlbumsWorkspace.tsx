@@ -34,6 +34,7 @@ import { DesktopAlbumCard } from "./DesktopAlbumCard";
 import { DesktopAlbumContentGrid } from "./DesktopAlbumContentGrid";
 import { ALBUM_ITEMS_PAGE_SIZE } from "./DesktopAlbumDetailPanel";
 import { BestOfYearFiltersPanel } from "./BestOfYearFiltersPanel";
+import { BestOfPersonPeopleFiltersPanel } from "./BestOfPersonPeopleFiltersPanel";
 import { DesktopAlbumsWorkspaceHeader } from "./DesktopAlbumsWorkspaceHeader";
 import { SmartAlbumsWorkspace } from "./SmartAlbumsWorkspace";
 import {
@@ -44,6 +45,7 @@ import {
 import {
   ALBUM_YEAR_MONTH_INPUT_HINT,
   ALBUM_YEAR_MONTH_INPUT_PLACEHOLDER,
+  ALBUM_YEAR_MONTH_INPUT_WIDTH_CLASS,
   sanitizeAlbumYearMonthDigitsInput,
 } from "../lib/album-year-month-input";
 import { smartAlbumAutoOpenFilterPanel } from "../lib/smart-album-auto-open-filter-panel";
@@ -80,6 +82,9 @@ function formatActiveSmartPlacePath(entry: SmartAlbumPlaceEntry): string {
 function countActiveSmartAlbumFilters(filters: SmartAlbumFilters): number {
   let count = 0;
   if (filters.query?.trim()) count += 1;
+  if (filters.locationQuery?.trim()) count += 1;
+  if (filters.dateFrom?.trim()) count += 1;
+  if (filters.dateTo?.trim()) count += 1;
   if ((filters.personTagIds ?? []).length > 0) count += 1;
   if (Number.isFinite(filters.starRatingMin)) count += 1;
   if (Number.isFinite(filters.aiAestheticMin)) count += 1;
@@ -184,6 +189,8 @@ export function DesktopAlbumsWorkspace({
     smartAlbumAutoOpenFilterPanel(smartAlbumRootKind),
   );
   const [smartAlbumPersonGroupIds, setSmartAlbumPersonGroupIds] = useState<string[]>([]);
+  const [smartAlbumBestOfPersonTagIds, setSmartAlbumBestOfPersonTagIds] = useState<string[]>([]);
+  const [bestOfPersonFiltersResetKey, setBestOfPersonFiltersResetKey] = useState(0);
   const [personGroupsMeta, setPersonGroupsMeta] = useState<PersonGroupListMeta[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -220,7 +227,9 @@ export function DesktopAlbumsWorkspace({
   const selectedAlbum = albums.find((album) => album.id === selectedAlbumId) ?? null;
   const smartPlaceRequest = useMemo<SmartAlbumPlacesRequest | null>(
     () =>
-      smartAlbumRootKind === "best-of-year" || smartAlbumRootKind === "best-of-people-group"
+      smartAlbumRootKind === "best-of-year" ||
+      smartAlbumRootKind === "best-of-person-people" ||
+      smartAlbumRootKind === "best-of-people-group"
         ? null
         : {
             grouping:
@@ -264,8 +273,16 @@ export function DesktopAlbumsWorkspace({
     if (smartAlbumRootKind === "best-of-people-group" && smartAlbumPersonGroupIds.length > 0) {
       count += 1;
     }
+    if (smartAlbumRootKind === "best-of-person-people" && smartAlbumBestOfPersonTagIds.length > 0) {
+      count += 1;
+    }
     return count;
-  }, [smartAlbumFilters, smartAlbumRootKind, smartAlbumPersonGroupIds.length]);
+  }, [
+    smartAlbumFilters,
+    smartAlbumRootKind,
+    smartAlbumPersonGroupIds.length,
+    smartAlbumBestOfPersonTagIds.length,
+  ]);
   const albumListSearchFiltersActiveCount = useMemo((): number => {
     let count = 0;
     if (titleDraft.trim() || titleFilter.trim()) count += 1;
@@ -349,7 +366,7 @@ export function DesktopAlbumsWorkspace({
           filters: smartAlbumFiltersForRpc,
         });
         setSmartPlaceCountries(result.countries);
-      } else if (smartAlbumRootKind !== "best-of-people-group") {
+      } else if (smartAlbumRootKind !== "best-of-people-group" && smartAlbumRootKind !== "best-of-person-people") {
         const result = await actions.loadSmartAlbumYears({ filters: smartAlbumFiltersForRpc });
         setSmartYears(result.years);
       }
@@ -367,6 +384,11 @@ export function DesktopAlbumsWorkspace({
       return;
     }
     if (activeSmartAlbum.kind === "best-of-people-group" && smartAlbumPersonGroupIds.length === 0) {
+      setSmartItems([]);
+      setSmartItemsTotal(0);
+      return;
+    }
+    if (activeSmartAlbum.kind === "best-of-person-people" && smartAlbumBestOfPersonTagIds.length === 0) {
       setSmartItems([]);
       setSmartItemsTotal(0);
       return;
@@ -412,16 +434,27 @@ export function DesktopAlbumsWorkspace({
                 offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
                 limit: ALBUM_ITEMS_PAGE_SIZE,
               })
-            : await actions.loadSmartAlbumItems({
-                kind: "best-of-year",
-                year: activeSmartAlbum.year,
-                randomize: randomizeEnabled,
-                randomCandidateLimit,
-                randomOrderSeed,
-                filters: smartAlbumFiltersForRpc,
-                offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
-                limit: ALBUM_ITEMS_PAGE_SIZE,
-              });
+            : activeSmartAlbum.kind === "best-of-person-people"
+              ? await actions.loadSmartAlbumItems({
+                  kind: "best-of-person-people",
+                  personTagIds: smartAlbumBestOfPersonTagIds.slice(0, 20),
+                  randomize: randomizeEnabled,
+                  randomCandidateLimit,
+                  randomOrderSeed,
+                  filters: { ...smartAlbumFiltersForRpc, personTagIds: undefined },
+                  offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
+                  limit: ALBUM_ITEMS_PAGE_SIZE,
+                })
+              : await actions.loadSmartAlbumItems({
+                  kind: "best-of-year",
+                  year: activeSmartAlbum.year,
+                  randomize: randomizeEnabled,
+                  randomCandidateLimit,
+                  randomOrderSeed,
+                  filters: smartAlbumFiltersForRpc,
+                  offset: smartItemsPage * ALBUM_ITEMS_PAGE_SIZE,
+                  limit: ALBUM_ITEMS_PAGE_SIZE,
+                });
       setSmartItems(result.rows);
       setSmartItemsTotal(result.totalCount);
     } catch (error) {
@@ -437,6 +470,7 @@ export function DesktopAlbumsWorkspace({
     randomRefreshKey,
     smartAlbumFiltersForRpc,
     smartAlbumPersonGroupIds,
+    smartAlbumBestOfPersonTagIds,
     smartItemsPage,
     smartPlaceRequest,
   ]);
@@ -507,9 +541,16 @@ export function DesktopAlbumsWorkspace({
     setExpandedSmartGroups([]);
     setSmartItemsPage(0);
     setSmartAlbumPersonGroupIds([]);
+    setSmartAlbumBestOfPersonTagIds([]);
     setSmartFilterPanelOpen(smartAlbumAutoOpenFilterPanel(smartAlbumRootKind));
     if (smartAlbumRootKind === "best-of-people-group") {
       setActiveSmartAlbum({ kind: "best-of-people-group" });
+      setSmartAlbumFilters((f) => ({ ...f, personTagIds: undefined }));
+      return;
+    }
+    if (smartAlbumRootKind === "best-of-person-people") {
+      setActiveSmartAlbum({ kind: "best-of-person-people" });
+      setSmartAlbumFilters((f) => ({ ...f, personTagIds: undefined }));
       return;
     }
     setActiveSmartAlbum(null);
@@ -558,6 +599,10 @@ export function DesktopAlbumsWorkspace({
   }, [smartAlbumPersonGroupIds]);
 
   useEffect(() => {
+    setSmartItemsPage(0);
+  }, [smartAlbumBestOfPersonTagIds]);
+
+  useEffect(() => {
     if (!albumQuickFiltersOpen) {
       return;
     }
@@ -600,6 +645,18 @@ export function DesktopAlbumsWorkspace({
     });
   };
 
+  const toggleBestOfPersonPeopleTag = (tagId: string): void => {
+    setSmartAlbumBestOfPersonTagIds((current) => {
+      if (current.includes(tagId)) {
+        return current.filter((id) => id !== tagId);
+      }
+      if (current.length >= 20) {
+        return current;
+      }
+      return [...current, tagId];
+    });
+  };
+
   const handleCreate = async (): Promise<void> => {
     const title = newTitle.trim();
     if (!title) return;
@@ -622,9 +679,11 @@ export function DesktopAlbumsWorkspace({
   const smartRootTitle =
     smartAlbumRootKind === "best-of-year"
       ? "Best of Year"
-      : smartAlbumRootKind === "best-of-people-group"
-        ? "Best of People group"
-        : smartPlaceRootTitle;
+      : smartAlbumRootKind === "best-of-person-people"
+        ? "Best of Person / People"
+        : smartAlbumRootKind === "best-of-people-group"
+          ? "Best of People group"
+          : smartPlaceRootTitle;
   const activeSmartTitle =
     activeSmartAlbum?.kind === "place"
       ? formatActiveSmartPlacePath(activeSmartAlbum.entry)
@@ -632,10 +691,12 @@ export function DesktopAlbumsWorkspace({
         ? `Best of ${activeSmartAlbum.year}`
         : activeSmartAlbum?.kind === "best-of-people-group"
           ? "Best of People group"
-          : smartRootTitle;
+          : activeSmartAlbum?.kind === "best-of-person-people"
+            ? "Best of Person / People"
+            : smartRootTitle;
 
   const handleBackToSmartRoot = (): void => {
-    if (smartAlbumRootKind === "best-of-people-group") {
+    if (smartAlbumRootKind === "best-of-people-group" || smartAlbumRootKind === "best-of-person-people") {
       return;
     }
     setActiveSmartAlbum(null);
@@ -752,7 +813,7 @@ export function DesktopAlbumsWorkspace({
                           autoComplete="off"
                           spellCheck={false}
                           className={cn(
-                            "w-[13ch] max-w-full min-w-0 border-ai-search-border bg-ai-search-control font-mono text-sm tabular-nums text-ai-search-text placeholder:text-ai-search-muted/75",
+                            `${ALBUM_YEAR_MONTH_INPUT_WIDTH_CLASS} border-ai-search-border bg-ai-search-control font-mono text-sm tabular-nums text-ai-search-text placeholder:text-ai-search-muted/75`,
                             yearMonthFromDraft.trim() || yearMonthFromFilter.trim()
                               ? albumFilterActiveInputClasses
                               : "focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
@@ -771,7 +832,7 @@ export function DesktopAlbumsWorkspace({
                           autoComplete="off"
                           spellCheck={false}
                           className={cn(
-                            "w-[13ch] max-w-full min-w-0 border-ai-search-border bg-ai-search-control font-mono text-sm tabular-nums text-ai-search-text placeholder:text-ai-search-muted/75",
+                            `${ALBUM_YEAR_MONTH_INPUT_WIDTH_CLASS} border-ai-search-border bg-ai-search-control font-mono text-sm tabular-nums text-ai-search-text placeholder:text-ai-search-muted/75`,
                             yearMonthToDraft.trim() || yearMonthToFilter.trim()
                               ? albumFilterActiveInputClasses
                               : "focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
@@ -815,31 +876,49 @@ export function DesktopAlbumsWorkspace({
         ) : null}
         {showingSmart &&
         (smartAlbumRootKind === "best-of-year" ||
+          smartAlbumRootKind === "best-of-person-people" ||
           smartAlbumRootKind === "best-of-people-group" ||
           smartAlbumRootKind === "country-area-city" ||
           smartAlbumRootKind === "country-year-area") &&
         showSmartFilterPanel ? (
-          <BestOfYearFiltersPanel
-            filters={smartAlbumFilters}
-            personTags={personTags}
-            personGroups={smartAlbumRootKind === "best-of-people-group" ? personGroupsMeta : undefined}
-            selectedPersonGroupIds={
-              smartAlbumRootKind === "best-of-people-group" ? smartAlbumPersonGroupIds : undefined
-            }
-            onTogglePersonGroup={
-              smartAlbumRootKind === "best-of-people-group" ? toggleSmartPersonGroup : undefined
-            }
-            hidePersonTags={smartAlbumRootKind === "best-of-people-group"}
-            onClose={() => setSmartFilterPanelOpen(false)}
-            onClear={() => {
-              setSmartAlbumFilters(EMPTY_SMART_ALBUM_FILTERS);
-              if (smartAlbumRootKind === "best-of-people-group") {
-                setSmartAlbumPersonGroupIds([]);
+          smartAlbumRootKind === "best-of-person-people" ? (
+            <BestOfPersonPeopleFiltersPanel
+              filters={smartAlbumFilters}
+              selectedPersonTagIds={smartAlbumBestOfPersonTagIds}
+              personTags={personTags}
+              resetKey={bestOfPersonFiltersResetKey}
+              onClose={() => setSmartFilterPanelOpen(false)}
+              onClear={() => {
+                setSmartAlbumFilters(EMPTY_SMART_ALBUM_FILTERS);
+                setSmartAlbumBestOfPersonTagIds([]);
+                setBestOfPersonFiltersResetKey((k) => k + 1);
+              }}
+              onFiltersChange={setSmartAlbumFilters}
+              onTogglePersonTag={toggleBestOfPersonPeopleTag}
+            />
+          ) : (
+            <BestOfYearFiltersPanel
+              filters={smartAlbumFilters}
+              personTags={personTags}
+              personGroups={smartAlbumRootKind === "best-of-people-group" ? personGroupsMeta : undefined}
+              selectedPersonGroupIds={
+                smartAlbumRootKind === "best-of-people-group" ? smartAlbumPersonGroupIds : undefined
               }
-            }}
-            onFiltersChange={setSmartAlbumFilters}
-            onTogglePersonTag={toggleSmartFilterPersonTag}
-          />
+              onTogglePersonGroup={
+                smartAlbumRootKind === "best-of-people-group" ? toggleSmartPersonGroup : undefined
+              }
+              hidePersonTags={smartAlbumRootKind === "best-of-people-group"}
+              onClose={() => setSmartFilterPanelOpen(false)}
+              onClear={() => {
+                setSmartAlbumFilters(EMPTY_SMART_ALBUM_FILTERS);
+                if (smartAlbumRootKind === "best-of-people-group") {
+                  setSmartAlbumPersonGroupIds([]);
+                }
+              }}
+              onFiltersChange={setSmartAlbumFilters}
+              onTogglePersonTag={toggleSmartFilterPersonTag}
+            />
+          )
         ) : null}
       </div>
       {errorMessage ? (
@@ -877,14 +956,19 @@ export function DesktopAlbumsWorkspace({
           emptyAlbumMessage={
             smartAlbumRootKind === "best-of-people-group" && smartAlbumPersonGroupIds.length === 0
               ? "Please select a people group"
-              : undefined
+              : smartAlbumRootKind === "best-of-person-people" && smartAlbumBestOfPersonTagIds.length === 0
+                ? "Please select at least one person tag"
+                : undefined
           }
           emptyAlbumMessageEmphasis={
-            smartAlbumRootKind === "best-of-people-group" && smartAlbumPersonGroupIds.length === 0
+            (smartAlbumRootKind === "best-of-people-group" && smartAlbumPersonGroupIds.length === 0) ||
+            (smartAlbumRootKind === "best-of-person-people" && smartAlbumBestOfPersonTagIds.length === 0)
           }
           thumbScrollPaddingClass={
             activeSmartAlbum != null
-              ? activeSmartAlbum.kind === "best-of-year" || activeSmartAlbum.kind === "best-of-people-group"
+              ? activeSmartAlbum.kind === "best-of-year" ||
+                activeSmartAlbum.kind === "best-of-people-group" ||
+                activeSmartAlbum.kind === "best-of-person-people"
                 ? "px-2 pt-2 sm:px-3"
                 : "px-4 pt-2"
               : undefined

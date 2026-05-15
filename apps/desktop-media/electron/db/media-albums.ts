@@ -148,6 +148,55 @@ function appendSmartAlbumPeopleGroupFilters(
   }
 }
 
+/** Required person tags (AND): each tag must match the item. Caps at 20 ids. */
+function appendSmartAlbumRequiredPersonTagIntersection(
+  where: string[],
+  args: unknown[],
+  alias: string,
+  libraryId: string,
+  personTagIds: readonly string[],
+  includeUnconfirmedFaces: boolean | undefined,
+): void {
+  const normalized = Array.from(
+    new Set(personTagIds.map((id) => id.trim()).filter(Boolean)),
+  ).slice(0, 20);
+  if (normalized.length === 0) {
+    where.push("1 = 0");
+    return;
+  }
+  const allowUnconfirmed = includeUnconfirmedFaces === true;
+  for (const personTagId of normalized) {
+    if (allowUnconfirmed) {
+      where.push(`(
+        EXISTS (
+          SELECT 1
+          FROM media_face_instances fi
+          WHERE fi.library_id = ?
+            AND fi.media_item_id = ${alias}.id
+            AND fi.tag_id = ?
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM media_item_person_suggestions ps
+          WHERE ps.library_id = ?
+            AND ps.media_item_id = ${alias}.id
+            AND ps.tag_id = ?
+        )
+      )`);
+      args.push(libraryId, personTagId, libraryId, personTagId);
+    } else {
+      where.push(`EXISTS (
+        SELECT 1
+        FROM media_face_instances fi
+        WHERE fi.library_id = ?
+          AND fi.media_item_id = ${alias}.id
+          AND fi.tag_id = ?
+      )`);
+      args.push(libraryId, personTagId);
+    }
+  }
+}
+
 interface AlbumRow {
   id: string;
   name: string;
@@ -438,6 +487,19 @@ function appendSmartAlbumCommonFilters(
       OR COALESCE(CAST(json_extract(${alias}.ai_metadata, '$.description') AS TEXT), '') LIKE ?
     )`);
     args.push(like, like, like, like, like, like);
+  }
+  const locationQuery = filters?.locationQuery?.trim();
+  if (locationQuery) {
+    const q = `%${locationQuery}%`;
+    where.push(`(
+      COALESCE(${alias}.country, '') LIKE ?
+      OR COALESCE(${alias}.city, '') LIKE ?
+      OR COALESCE(${alias}.location_area, '') LIKE ?
+      OR COALESCE(${alias}.location_area2, '') LIKE ?
+      OR COALESCE(${alias}.location_place, '') LIKE ?
+      OR COALESCE(${alias}.location_name, '') LIKE ?
+    )`);
+    args.push(q, q, q, q, q, q);
   }
   const normalizedPersonTagIds = (filters?.personTagIds ?? []).map((id) => id.trim()).filter(Boolean);
   const allowUnconfirmed = filters?.includeUnconfirmedFaces === true;
@@ -1121,6 +1183,82 @@ export function listSmartAlbumItems(
       request.personGroupIds,
       request.filters,
       db,
+    );
+    const commonWhereSql = commonWhere.length > 0 ? `AND ${commonWhere.join("\n         AND ")}` : "";
+    const total = db
+      .prepare(
+        `SELECT COUNT(*) AS cnt
+       FROM media_items mi
+       WHERE mi.library_id = ?
+         AND mi.deleted_at IS NULL
+         ${commonWhereSql}`,
+      )
+      .get(libraryId, ...commonArgs) as { cnt: number } | undefined;
+
+    if (request.randomize) {
+      const seed = request.randomOrderSeed ?? 0;
+      const candidateRows = db
+        .prepare(
+          `WITH filtered_items AS (
+         SELECT mi.id, mi.source_path, mi.filename, mi.display_title, mi.media_kind, mi.star_rating, mi.width, mi.height,
+                mi.photo_taken_at, mi.file_created_at, mi.ai_metadata
+         FROM media_items mi
+       WHERE mi.library_id = ?
+         AND mi.deleted_at IS NULL
+         ${commonWhereSql}
+       ORDER BY ${qualityOrderBy}
+       LIMIT ?
+       )
+       SELECT id, source_path, filename, display_title, media_kind, star_rating, width, height
+       FROM filtered_items`,
+        )
+        .all(libraryId, ...commonArgs, candidateLimit) as AlbumItemRow[];
+      const sorted = [...candidateRows].sort((a, b) => stableShuffleCompare(seed, a.id, b.id));
+      const pageRows = sorted.slice(offset, offset + limit);
+      return { rows: mapAlbumItemRows(pageRows), totalCount: total?.cnt ?? 0 };
+    }
+
+    const rows = db
+      .prepare(
+        `WITH filtered_items AS (
+         SELECT mi.id, mi.source_path, mi.filename, mi.display_title, mi.media_kind, mi.star_rating, mi.width, mi.height,
+                mi.photo_taken_at, mi.file_created_at, mi.ai_metadata
+         FROM media_items mi
+       WHERE mi.library_id = ?
+         AND mi.deleted_at IS NULL
+         ${commonWhereSql}
+       ORDER BY ${qualityOrderBy}
+       LIMIT ?
+       )
+       SELECT id, source_path, filename, display_title, media_kind, star_rating, width, height
+       FROM filtered_items
+       ORDER BY ${qualityOrderByOuter}
+       LIMIT ? OFFSET ?`,
+      )
+      .all(libraryId, ...commonArgs, candidateLimit, limit, offset) as AlbumItemRow[];
+    return { rows: mapAlbumItemRows(rows), totalCount: total?.cnt ?? 0 };
+  }
+
+  if (request.kind === "best-of-person-people") {
+    const candidateLimit = request.randomize
+      ? clampPage(request.randomCandidateLimit, BEST_OF_YEAR_RANDOM_CANDIDATE_LIMIT, 10000)
+      : 2147483647;
+    const qualityOrderBy = bestOfQualityOrderByMi();
+    const qualityOrderByOuter = qualityOrderBy.replaceAll("mi.", "");
+    const filtersBase = request.filters;
+    const filtersForCommon: SmartAlbumFilters | undefined =
+      filtersBase === undefined ? undefined : { ...filtersBase, personTagIds: undefined };
+    const commonWhere: string[] = [];
+    const commonArgs: unknown[] = [];
+    appendSmartAlbumExcludedImageCategoryClause(commonWhere, commonArgs, "mi.ai_metadata", filtersForCommon);
+    appendSmartAlbumCommonFilters(commonWhere, commonArgs, "mi", libraryId, filtersForCommon);
+    appendSmartAlbumRequiredPersonTagIntersection(
+      commonWhere,
+      commonArgs,
+      "mi",
+      libraryId,
+      request.personTagIds,
+      filtersBase?.includeUnconfirmedFaces,
     );
     const commonWhereSql = commonWhere.length > 0 ? `AND ${commonWhere.join("\n         AND ")}` : "";
     const total = db

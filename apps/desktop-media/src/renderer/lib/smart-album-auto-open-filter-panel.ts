@@ -9,6 +9,7 @@ export const SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS: Record<SmartAlbumRootKind, 
   "country-area-city": false,
   "ai-countries": false,
   "best-of-year": true,
+  "best-of-person-people": true,
   "best-of-people-group": true,
 };
 

@@ -44,6 +44,7 @@ function renderSection(options: {
       | "country-area-city"
       | "ai-countries"
       | "best-of-year"
+      | "best-of-person-people"
       | "best-of-people-group"
   ) => void;
   onShowAlbumList?: () => void;
@@ -52,6 +53,7 @@ function renderSection(options: {
     | "country-area-city"
     | "ai-countries"
     | "best-of-year"
+    | "best-of-person-people"
     | "best-of-people-group"
     | null;
 }) {
@@ -177,12 +179,14 @@ describe("DesktopSidebarAlbumsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Country > Year > Area" }));
     fireEvent.click(screen.getByRole("button", { name: "Country > Area > City" }));
     fireEvent.click(screen.getByRole("button", { name: "Best of Year" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best of Person / People" }));
     fireEvent.click(screen.getByRole("button", { name: "Best of People group" }));
 
     expect(onSmartAlbumSelected).toHaveBeenNthCalledWith(1, "country-year-area");
     expect(onSmartAlbumSelected).toHaveBeenNthCalledWith(2, "country-area-city");
     expect(onSmartAlbumSelected).toHaveBeenNthCalledWith(3, "best-of-year");
-    expect(onSmartAlbumSelected).toHaveBeenNthCalledWith(4, "best-of-people-group");
+    expect(onSmartAlbumSelected).toHaveBeenNthCalledWith(4, "best-of-person-people");
+    expect(onSmartAlbumSelected).toHaveBeenNthCalledWith(5, "best-of-people-group");
   });
 
   it("lists ALL ALBUMS before SMART ALBUMS in the sidebar", async () => {

@@ -16,6 +16,7 @@ describe("smartAlbumAutoOpenFilterPanel", () => {
     expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["country-year-area"]).toBe(false);
     expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["country-area-city"]).toBe(false);
     expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["best-of-year"]).toBe(true);
+    expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["best-of-person-people"]).toBe(true);
     expect(SMART_ALBUM_AUTO_OPEN_FILTERS_DEFAULTS["best-of-people-group"]).toBe(true);
   });
 });

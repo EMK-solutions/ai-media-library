@@ -109,6 +109,10 @@ export function SmartAlbumsWorkspace({
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
               Loading Best of People group…
             </div>
+          ) : smartAlbumRootKind === "best-of-person-people" ? (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+              Use the filter panel to choose person tags, then browse matching media here.
+            </div>
           ) : smartYears.length === 0 && !isLoading ? (
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
               No dated media found yet. Run metadata scan to generate Best of Year smart albums.
