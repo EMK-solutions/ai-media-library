@@ -16,6 +16,7 @@ import {
   UserPlus,
   Users,
   X,
+  HelpCircle,
 } from "lucide-react";
 import type { PeopleWorkspaceOpenFacePhotoFn } from "@emk/media-viewer";
 import type {
@@ -73,6 +74,7 @@ const UI_TEXT = {
     "Auto-grouped faces without a person tag yet. Assign a person to the group to bulk-tag faces for that person. Assigning a person does not automatically tag every face in the group.",
   runClustering: "Find groups",
   refreshAriaLabel: "Refresh face groups list",
+  helpAria: "People & faces overview",
   empty: "No face clusters found. Run face detection with embeddings first, then click \"Find groups\".",
   members: "faces",
   nameGroup: "Name this person",
@@ -126,8 +128,10 @@ async function fetchSimilaritiesBatched(
 
 export function DesktopFaceClusterGrid({
   onOpenFacePhoto,
+  onOpenPeopleModuleHelp,
 }: {
   onOpenFacePhoto: PeopleWorkspaceOpenFacePhotoFn;
+  onOpenPeopleModuleHelp: () => void;
 }): ReactElement {
   const store = useDesktopStoreApi();
   const faceClusteringStatus = useDesktopStore((s) => s.faceClusteringStatus);
@@ -774,14 +778,27 @@ export function DesktopFaceClusterGrid({
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-8">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold md:text-4xl">{UI_TEXT.title}</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-3xl font-bold md:text-4xl">{UI_TEXT.title}</h1>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenPeopleModuleHelp();
+              }}
+              className="inline-flex size-[33px] shrink-0 items-center justify-center rounded-full border border-border p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label={UI_TEXT.helpAria}
+              title={UI_TEXT.helpAria}
+            >
+              <HelpCircle className="size-[29px]" aria-hidden />
+            </button>
+          </div>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
             {UI_TEXT.description}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 md:pt-1">
           <button
             type="button"
             onClick={() => void handleRunClustering()}

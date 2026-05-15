@@ -26,7 +26,11 @@ const UI_TEXT = {
   toggleBirthVisibility: "Show or hide birth dates in the table",
 } as const;
 
-export function DesktopPeopleTagsListTab(): ReactElement {
+export function DesktopPeopleTagsListTab({
+  onOpenPeopleModuleHelp,
+}: {
+  onOpenPeopleModuleHelp: () => void;
+}): ReactElement {
   const {
     rows,
     filteredRows,
@@ -78,6 +82,7 @@ export function DesktopPeopleTagsListTab(): ReactElement {
         isLoading={isLoading}
         onRefresh={() => void refreshListAndLiveSimilarCounts()}
         onAddPerson={openAddRow}
+        onOpenPeopleModuleHelp={onOpenPeopleModuleHelp}
       />
       <p className="max-w-3xl text-sm text-muted-foreground md:text-base">{UI_TEXT.description}</p>
 

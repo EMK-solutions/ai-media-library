@@ -24,7 +24,6 @@ import {
   type PeopleWorkspaceTaggedFace,
 } from "@emk/media-viewer";
 import type { TaggedFaceInfo } from "../../shared/ipc";
-import { PeopleOnboardingModal } from "./PeopleOnboardingModal";
 import { FaceSelectionFooter } from "./FaceSelectionFooter";
 import { computeFaceBackgroundCropStyle, toFileUrl } from "./face-cluster-utils";
 import { PeoplePaginationBar } from "./people-pagination-bar";
@@ -40,7 +39,7 @@ const UI_TEXT = {
     "Faces assigned (tagged) to a person and unconfirmed similar faces.",
   refreshAriaLabel:
     "Refresh person tags, tagged faces for the selected person, and similar face suggestions.",
-  taggingHelpAria: "Tagging & birth dates",
+  taggingHelpAria: "People & faces overview",
   tagsHeading: "Person tags",
   emptyTags: "Create person tags in photo face tags to start assigning related faces.",
   noFilterMatches: "No people match the filter.",
@@ -166,8 +165,10 @@ function RelatedFaceThumb({
 
 export function DesktopPeopleWorkspace({
   onOpenFacePhoto,
+  onOpenPeopleModuleHelp,
 }: {
   onOpenFacePhoto: PeopleWorkspaceOpenFacePhotoFn;
+  onOpenPeopleModuleHelp: () => void;
 }): ReactElement {
   const lastAiPipelineCompletion = useDesktopStore((s) => s.lastAiPipelineCompletion);
   const [tagsMeta, setTagsMeta] = useState<PersonTagListMeta[]>([]);
@@ -190,8 +191,6 @@ export function DesktopPeopleWorkspace({
   const [pendingAssignRowKey, setPendingAssignRowKey] = useState<string | null>(null);
   const [faceMatchThreshold, setFaceMatchThreshold] = useState(0.6);
   const [isRecomputingProfile, setIsRecomputingProfile] = useState(false);
-  const [taggingOnboardingOpen, setTaggingOnboardingOpen] = useState(false);
-
   const loadTags = useCallback(async () => {
     setIsRefreshing(true);
     setErrorMessage(null);
@@ -650,7 +649,9 @@ export function DesktopPeopleWorkspace({
       titleAccessory={
         <button
           type="button"
-          onClick={() => setTaggingOnboardingOpen(true)}
+          onClick={() => {
+            onOpenPeopleModuleHelp();
+          }}
           className="inline-flex size-[33px] shrink-0 items-center justify-center rounded-full border border-border p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label={UI_TEXT.taggingHelpAria}
           title={UI_TEXT.taggingHelpAria}
@@ -702,11 +703,6 @@ export function DesktopPeopleWorkspace({
       emptyMatchesLabel={UI_TEXT.emptyMatches}
       errorMessage={errorMessage}
       headerActions={headerActionsElement}
-    />
-    <PeopleOnboardingModal
-      open={taggingOnboardingOpen}
-      initialSlideId="whyTags"
-      onClose={() => setTaggingOnboardingOpen(false)}
     />
     </>
   );
