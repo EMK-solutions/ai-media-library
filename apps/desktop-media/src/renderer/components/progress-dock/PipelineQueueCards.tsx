@@ -131,7 +131,7 @@ function BundleCard({ bundle, variant, onDismissRecent }: BundleCardProps): Reac
           void window.desktopApi.pipelines.cancelBundle(bundle.bundleId);
         }}
       />
-    ) : variant === "recent" && (bundle.state === "succeeded" || bundle.state === "cancelled") ? (
+    ) : variant === "recent" ? (
       <ProgressDockCloseButton
         title={`Dismiss ${bundle.displayName}`}
         ariaLabel={`Dismiss ${bundle.displayName}`}
