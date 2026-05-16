@@ -61,6 +61,22 @@ async function advanceUntilVideo(
   throw new Error(`Did not reach a video slide after ${maxSteps} Next item clicks`);
 }
 
+function findImageBeforeVideo(
+  order: Array<{ name: string; kind: "image" | "video" | string }>,
+): { imageName: string; videoName: string } {
+  const videoIndex = order.findIndex((entry) => entry.kind === "video");
+  expect(videoIndex).toBeGreaterThanOrEqual(0);
+
+  for (let offset = 1; offset < order.length; offset += 1) {
+    const candidate = order[(videoIndex - offset + order.length) % order.length];
+    if (candidate?.kind === "image") {
+      return { imageName: candidate.name, videoName: order[videoIndex]!.name };
+    }
+  }
+
+  throw new Error("Mixed media fixture needs an image before a video");
+}
+
 async function setAutoPlayVideoOnSelection(
   mainWindow: import("@playwright/test").Page,
   enabled: boolean,
@@ -147,14 +163,12 @@ test.describe("Viewer mixed media", () => {
     await openE2eMixedMediaLibrary(electronApp, mainWindow);
     await switchToListView(mainWindow);
 
-    const { imageNames, videoNames } = await readMixedMediaNames(mainWindow);
-    expect(imageNames.length).toBeGreaterThan(0);
-    expect(videoNames.length).toBeGreaterThan(0);
+    const { imageName } = findImageBeforeVideo(await readFolderMediaOrder(mainWindow));
 
-    await openViewerFromListRow(mainWindow, imageNames[0]);
+    await openViewerFromListRow(mainWindow, imageName);
     await expect(mainWindow.locator(".media-swiper-theme .swiper-slide-active img[data-emk-fit-mode]")).toBeVisible();
 
-    await advanceUntilVideo(mainWindow, { expectedPaused: false });
+    await advanceUntilVideo(mainWindow, { expectedPaused: false, maxSteps: 1 });
   });
 
   test("clicking video in viewer strip auto-plays when setting is enabled", async ({ electronApp, mainWindow }) => {
@@ -193,14 +207,12 @@ test.describe("Viewer mixed media", () => {
       .toBe(false);
     await switchToListView(mainWindow);
 
-    const { imageNames, videoNames } = await readMixedMediaNames(mainWindow);
-    expect(imageNames.length).toBeGreaterThan(0);
-    expect(videoNames.length).toBeGreaterThan(0);
+    const { imageName } = findImageBeforeVideo(await readFolderMediaOrder(mainWindow));
 
-    await openViewerFromListRow(mainWindow, imageNames[0]);
+    await openViewerFromListRow(mainWindow, imageName);
     await expect(mainWindow.locator(".media-swiper-theme .swiper-slide-active img[data-emk-fit-mode]")).toBeVisible();
 
-    await advanceUntilVideo(mainWindow, { expectedPaused: true, timeoutPerStepMs: 25_000 });
+    await advanceUntilVideo(mainWindow, { expectedPaused: true, maxSteps: 1, timeoutPerStepMs: 25_000 });
   });
 
   test("slideshow mode advances after video playback ends", async ({ electronApp, mainWindow }) => {
@@ -236,13 +248,9 @@ test.describe("Viewer mixed media", () => {
     await openE2eMixedMediaLibrary(electronApp, mainWindow);
     await switchToListView(mainWindow);
 
-    const order = await readFolderMediaOrder(mainWindow);
-    const firstImage = order.find((e) => e.kind === "image");
-    const hasVideo = order.some((e) => e.kind === "video");
-    expect(hasVideo).toBe(true);
-    expect(firstImage).toBeTruthy();
+    const { imageName } = findImageBeforeVideo(await readFolderMediaOrder(mainWindow));
 
-    await openViewerFromListRow(mainWindow, firstImage!.name);
+    await openViewerFromListRow(mainWindow, imageName);
     await mainWindow.getByRole("button", { name: "Play slideshow" }).click();
 
     await expect
