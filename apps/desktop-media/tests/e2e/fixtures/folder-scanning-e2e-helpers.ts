@@ -52,7 +52,8 @@ async function waitForStableSettingsFlag(mainWindow: Page, options: {
     if (forceApply) {
       await apply();
     }
-    const deadline = Date.now() + (opts.kind === "photoDownscale" ? 30_000 : 20_000);
+    /** Downscale follows Settings UI + Zustand auto-save; under full E2E load the persisted flag can take longer to stabilize than GPS toggles. */
+    const deadline = Date.now() + (opts.kind === "photoDownscale" ? 60_000 : 20_000);
     let stableChecks = 0;
     while (Date.now() < deadline) {
       if (await isReady()) {

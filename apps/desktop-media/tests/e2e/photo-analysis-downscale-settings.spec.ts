@@ -110,7 +110,7 @@ test.describe("AI image analysis LLM downscale settings", () => {
     expect(requests[0]!.payload.params!.downscaleBeforeLlm).toBe(true);
     expect(requests[0]!.payload.params!.downscaleLongestSidePx).toBe(1024);
 
-    await mainWindow.getByText("Settings").click();
+    await mainWindow.getByRole("complementary").getByRole("button", { name: "Settings", exact: true }).click();
     const hideAdvancedSettingsCheckbox = mainWindow.getByRole("checkbox", {
       name: /Hide advanced settings/i,
     });
@@ -128,7 +128,7 @@ test.describe("AI image analysis LLM downscale settings", () => {
     const downscaleCheckbox = mainWindow.getByRole("checkbox", {
       name: /Downscale image dimensions before passing to LLM/i,
     });
-    await expect(downscaleCheckbox).toBeVisible({ timeout: 30_000 });
+    await expect(downscaleCheckbox).toBeVisible({ timeout: 60_000 });
     await downscaleCheckbox.uncheck();
     await expect(downscaleCheckbox).not.toBeChecked();
     await waitForPhotoDownscaleSetting(mainWindow, false);

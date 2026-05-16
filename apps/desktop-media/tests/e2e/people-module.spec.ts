@@ -14,7 +14,8 @@ test.describe("People module", () => {
     mainWindow,
   }) => {
     await mainWindow.getByRole("complementary").getByRole("button", { name: "People" }).click();
-    await mainWindow.getByRole("button", { name: "Tagged faces" }).click();
+    // "Untagged faces" contains the substring "Tagged faces"; require an exact tab label match.
+    await mainWindow.getByRole("button", { name: "Tagged faces", exact: true }).click();
     await mainWindow.getByRole("button", { name: "People & faces overview" }).click();
     await expect(
       mainWindow.getByRole("heading", { name: "People tags", exact: true }),
