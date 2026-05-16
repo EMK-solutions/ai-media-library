@@ -1,3 +1,6 @@
+/** Tailwind width for From/To fields (fits `YYYY-MM` in monospace). */
+export const ALBUM_YEAR_MONTH_INPUT_WIDTH_CLASS = "w-[7ch] max-w-full min-w-0";
+
 /** Display placeholder for album date range fields (full rules in hint text). */
 export const ALBUM_YEAR_MONTH_INPUT_PLACEHOLDER = "YYYY-MM";
 

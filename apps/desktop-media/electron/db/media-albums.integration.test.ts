@@ -740,4 +740,234 @@ describe.skipIf(!HAS_SQLITE)("media albums DB", () => {
       }).rows,
     ).toHaveLength(1);
   });
+
+  it("keeps best-of-year randomized order stable across pages for a fixed randomOrderSeed", () => {
+    for (let i = 1; i <= 5; i += 1) {
+      insertMediaItem({
+        id: `stable-r-${i}`,
+        sourcePath: `C:/photos/stable-r-${i}.jpg`,
+        starRating: 5,
+        aiQuality: 8,
+        photoTakenAt: `2024-01-${String(i).padStart(2, "0")}`,
+      });
+    }
+    const seed = 4242;
+    const firstCall = albums.listSmartAlbumItems({
+      kind: "best-of-year",
+      year: "2024",
+      randomize: true,
+      randomCandidateLimit: 100,
+      randomOrderSeed: seed,
+      limit: 2,
+      offset: 0,
+    }).rows.map((r) => r.id);
+    const page0 = albums.listSmartAlbumItems({
+      kind: "best-of-year",
+      year: "2024",
+      randomize: true,
+      randomCandidateLimit: 100,
+      randomOrderSeed: seed,
+      limit: 2,
+      offset: 0,
+    }).rows.map((r) => r.id);
+    const page1 = albums.listSmartAlbumItems({
+      kind: "best-of-year",
+      year: "2024",
+      randomize: true,
+      randomCandidateLimit: 100,
+      randomOrderSeed: seed,
+      limit: 2,
+      offset: 2,
+    }).rows.map((r) => r.id);
+    expect(page0).toEqual(firstCall);
+    expect(new Set([...page0, ...page1]).size).toBe(4);
+    const otherSeed = albums.listSmartAlbumItems({
+      kind: "best-of-year",
+      year: "2024",
+      randomize: true,
+      randomCandidateLimit: 100,
+      randomOrderSeed: seed + 1000,
+      limit: 2,
+      offset: 0,
+    }).rows.map((r) => r.id);
+    expect(otherSeed).not.toEqual(page0);
+  });
+
+  it("filters best-of-people-group by intersection of selected groups", () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const db = client.getDesktopDatabase();
+    db.prepare(
+      `INSERT INTO media_tags (id, library_id, name, tag_type, created_at, updated_at)
+       VALUES ('tag-a', ?, 'Alice', 'person', ?, ?)`,
+    ).run(LIBRARY_ID, now, now);
+    db.prepare(
+      `INSERT INTO media_tags (id, library_id, name, tag_type, created_at, updated_at)
+       VALUES ('tag-b', ?, 'Bob', 'person', ?, ?)`,
+    ).run(LIBRARY_ID, now, now);
+    db.prepare(
+      `INSERT INTO person_groups (id, library_id, name, created_at)
+       VALUES ('grp-a', ?, 'Group A', ?), ('grp-b', ?, 'Group B', ?)`,
+    ).run(LIBRARY_ID, now, LIBRARY_ID, now);
+    db.prepare(
+      `INSERT INTO person_tag_groups (tag_id, group_id, library_id, created_at)
+       VALUES ('tag-a', 'grp-a', ?, ?), ('tag-b', 'grp-b', ?, ?)`,
+    ).run(LIBRARY_ID, now, LIBRARY_ID, now);
+
+    insertMediaItem({
+      id: "only-a",
+      sourcePath: "C:/photos/only-a.jpg",
+      starRating: 5,
+      aiQuality: 8,
+      photoTakenAt: "2024-02-01",
+    });
+    insertMediaItem({
+      id: "only-b",
+      sourcePath: "C:/photos/only-b.jpg",
+      starRating: 5,
+      aiQuality: 8,
+      photoTakenAt: "2024-02-02",
+    });
+    insertMediaItem({
+      id: "both-ab",
+      sourcePath: "C:/photos/both-ab.jpg",
+      starRating: 5,
+      aiQuality: 8,
+      photoTakenAt: "2024-02-03",
+    });
+
+    for (const [faceId, itemId, tagId] of [
+      ["f-a", "only-a", "tag-a"],
+      ["f-b", "only-b", "tag-b"],
+      ["f-a2", "both-ab", "tag-a"],
+      ["f-b2", "both-ab", "tag-b"],
+    ] as const) {
+      db.prepare(
+        `INSERT INTO media_face_instances (
+          id, library_id, media_item_id, source, tag_id, created_at, updated_at
+        ) VALUES (?, ?, ?, 'manual', ?, ?, ?)`,
+      ).run(faceId, LIBRARY_ID, itemId, tagId, now, now);
+    }
+
+    expect(
+      albums
+        .listSmartAlbumItems({
+          kind: "best-of-people-group",
+          personGroupIds: ["grp-a"],
+          limit: 20,
+        })
+        .rows.map((r) => r.id)
+        .sort(),
+    ).toEqual(["both-ab", "only-a"].sort());
+
+    expect(
+      albums
+        .listSmartAlbumItems({
+          kind: "best-of-people-group",
+          personGroupIds: ["grp-a", "grp-b"],
+          limit: 20,
+        })
+        .rows.map((r) => r.id),
+    ).toEqual(["both-ab"]);
+  });
+
+  it("returns no rows for best-of-person-people when personTagIds is empty", () => {
+    insertMediaItem({
+      id: "solo",
+      sourcePath: "C:/photos/solo.jpg",
+      starRating: 5,
+      aiQuality: 8,
+      photoTakenAt: "2024-02-01",
+    });
+    expect(albums.listSmartAlbumItems({ kind: "best-of-person-people", personTagIds: [] }).totalCount).toBe(0);
+  });
+
+  it("filters best-of-person-people by intersection of person tags and locationQuery", () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const db = client.getDesktopDatabase();
+    db.prepare(
+      `INSERT INTO media_tags (id, library_id, name, tag_type, created_at, updated_at)
+       VALUES ('tag-a', ?, 'Alice', 'person', ?, ?), ('tag-b', ?, 'Bob', 'person', ?, ?)`,
+    ).run(LIBRARY_ID, now, now, LIBRARY_ID, now, now);
+
+    insertMediaItem({
+      id: "only-a",
+      sourcePath: "C:/photos/only-a.jpg",
+      starRating: 5,
+      aiQuality: 8,
+      country: "France",
+      photoTakenAt: "2024-02-01",
+    });
+    insertMediaItem({
+      id: "only-b",
+      sourcePath: "C:/photos/only-b.jpg",
+      starRating: 5,
+      aiQuality: 8,
+      country: "France",
+      photoTakenAt: "2024-02-02",
+    });
+    insertMediaItem({
+      id: "both-ab",
+      sourcePath: "C:/photos/both-ab.jpg",
+      starRating: 5,
+      aiQuality: 8,
+      country: "Germany",
+      photoTakenAt: "2024-02-03",
+    });
+
+    for (const [faceId, itemId, tagId] of [
+      ["f-a", "only-a", "tag-a"],
+      ["f-b", "only-b", "tag-b"],
+      ["f-a2", "both-ab", "tag-a"],
+      ["f-b2", "both-ab", "tag-b"],
+    ] as const) {
+      db.prepare(
+        `INSERT INTO media_face_instances (
+          id, library_id, media_item_id, source, tag_id, created_at, updated_at
+        ) VALUES (?, ?, ?, 'manual', ?, ?, ?)`,
+      ).run(faceId, LIBRARY_ID, itemId, tagId, now, now);
+    }
+
+    expect(
+      albums
+        .listSmartAlbumItems({
+          kind: "best-of-person-people",
+          personTagIds: ["tag-a"],
+          limit: 20,
+        })
+        .rows.map((r) => r.id)
+        .sort(),
+    ).toEqual(["both-ab", "only-a"].sort());
+
+    expect(
+      albums
+        .listSmartAlbumItems({
+          kind: "best-of-person-people",
+          personTagIds: ["tag-a", "tag-b"],
+          limit: 20,
+        })
+        .rows.map((r) => r.id),
+    ).toEqual(["both-ab"]);
+
+    expect(
+      albums
+        .listSmartAlbumItems({
+          kind: "best-of-person-people",
+          personTagIds: ["tag-a", "tag-b"],
+          filters: { locationQuery: "Germany" },
+          limit: 20,
+        })
+        .rows.map((r) => r.id),
+    ).toEqual(["both-ab"]);
+
+    expect(
+      albums
+        .listSmartAlbumItems({
+          kind: "best-of-person-people",
+          personTagIds: ["tag-a", "tag-b"],
+          filters: { locationQuery: "France" },
+          limit: 20,
+        })
+        .rows.map((r) => r.id),
+    ).toEqual([]);
+  });
 });

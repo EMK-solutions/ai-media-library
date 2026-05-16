@@ -11,11 +11,13 @@ const UI_TEXT = {
   recent: "RECENT",
   smartAlbums: "SMART ALBUMS",
   allAlbums: "ALL ALBUMS",
-  bestOfYearMonthDay: "Best of Year | Month | Day",
+  bestOf: "Best of",
   countries: "Countries",
   countryYearArea: "Country > Year > Area",
   countryAreaCity: "Country > Area > City",
   bestOfYear: "Best of Year",
+  bestOfPersonPeople: "Best of Person / People",
+  bestOfPeopleGroup: "Best of People group",
 } as const;
 
 /** Matches active section style in `MainAppSidebar` (`border-primary` + `bg-primary/10`). */
@@ -206,18 +208,34 @@ export function DesktopSidebarAlbumsSection({
         <div className="space-y-1">
           <AlbumSectionHeader
             nested
-            title={UI_TEXT.bestOfYearMonthDay}
+            title={UI_TEXT.bestOf}
             expanded={expandedSmartSubBestOfTime}
             onToggle={() => setExpandedSmartSubBestOfTime((open) => !open)}
           />
           {expandedSmartSubBestOfTime ? (
-            <button
-              type="button"
-              onClick={() => selectSmartAlbum("best-of-year")}
-              className={smartAlbumRowClassName(highlightedSmartAlbumKind === "best-of-year")}
-            >
-              {UI_TEXT.bestOfYear}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => selectSmartAlbum("best-of-year")}
+                className={smartAlbumRowClassName(highlightedSmartAlbumKind === "best-of-year")}
+              >
+                {UI_TEXT.bestOfYear}
+              </button>
+              <button
+                type="button"
+                onClick={() => selectSmartAlbum("best-of-person-people")}
+                className={smartAlbumRowClassName(highlightedSmartAlbumKind === "best-of-person-people")}
+              >
+                {UI_TEXT.bestOfPersonPeople}
+              </button>
+              <button
+                type="button"
+                onClick={() => selectSmartAlbum("best-of-people-group")}
+                className={smartAlbumRowClassName(highlightedSmartAlbumKind === "best-of-people-group")}
+              >
+                {UI_TEXT.bestOfPeopleGroup}
+              </button>
+            </>
           ) : null}
           <AlbumSectionHeader
             nested
