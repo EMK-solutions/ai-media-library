@@ -61,6 +61,8 @@ function renderGrid({
   albumItemsPage = 0,
   albumItemsTotal,
   reorderAlbumMediaItem,
+  emptyAlbumMessage,
+  emptyAlbumMessageEmphasis,
 }: {
   albumItems?: AlbumMediaItem[];
   quickFilters?: typeof DEFAULT_THUMBNAIL_QUICK_FILTERS;
@@ -73,6 +75,8 @@ function renderGrid({
     mediaItemId: string;
     insertBeforeIndex: number;
   }) => Promise<void>;
+  emptyAlbumMessage?: string;
+  emptyAlbumMessageEmphasis?: boolean;
 } = {}) {
   const store = createDesktopStore();
   const openViewerSpy = vi.spyOn(store.getState(), "openViewer");
@@ -111,6 +115,8 @@ function renderGrid({
         viewMode={viewMode}
         onAlbumItemsPageChange={vi.fn()}
         reorderAlbumMediaItem={reorderAlbumMediaItem}
+        emptyAlbumMessage={emptyAlbumMessage}
+        emptyAlbumMessageEmphasis={emptyAlbumMessageEmphasis}
       />
     </DesktopStoreProvider>,
   );
@@ -142,6 +148,24 @@ describe("DesktopAlbumContentGrid", () => {
     renderGrid({ albumItems: [] });
 
     expect(screen.getByText("This album is empty.")).toBeVisible();
+  });
+
+  it("uses emptyAlbumMessage when the album has no items", () => {
+    renderGrid({ albumItems: [], emptyAlbumMessage: "Please select a people group" });
+
+    expect(screen.getByText("Please select a people group")).toBeVisible();
+    expect(screen.queryByText("This album is empty.")).toBeNull();
+  });
+
+  it("emphasizes emptyAlbumMessage when emptyAlbumMessageEmphasis is true", () => {
+    renderGrid({
+      albumItems: [],
+      emptyAlbumMessage: "Please select a people group",
+      emptyAlbumMessageEmphasis: true,
+    });
+
+    const message = screen.getByText("Please select a people group");
+    expect(message).toHaveClass("text-amber-600");
   });
 
   it("renders a no-match state when quick filters exclude all loaded items", () => {

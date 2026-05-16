@@ -47,6 +47,7 @@ function installDesktopApiMock(): Record<string, ReturnType<typeof vi.fn>> {
   });
   const desktopApi = {
     listPersonTagsWithFaceCounts: vi.fn().mockResolvedValue([]),
+    listPersonGroups: vi.fn().mockResolvedValue([]),
     listAlbums: vi
       .fn()
       .mockResolvedValueOnce({ rows: [firstAlbumState], totalCount: 1 })
@@ -150,6 +151,7 @@ describe("DesktopAlbumsWorkspace", () => {
       listPersonTagsWithFaceCounts: vi.fn().mockResolvedValue([
         { id: "tag-1", label: "River", pinned: true, taggedFaceCount: 3 },
       ]),
+      listPersonGroups: vi.fn().mockResolvedValue([]),
       listAlbums: vi
         .fn()
         .mockResolvedValue({ rows: rowBatch, totalCount: 48 }),

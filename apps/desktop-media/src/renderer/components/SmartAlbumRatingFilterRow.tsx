@@ -43,12 +43,12 @@ export function SmartAlbumRatingFilterRow({
         {operator === "gte" ? "≥" : "="}
       </button>
       <div className="ml-2 flex min-w-0 items-center">
-      <MediaItemStarRating
-        starRating={value}
-        onChange={(next) => onChange(next > 0 ? next : null)}
-        expanded
-        tone="onCard"
-      />
+        <MediaItemStarRating
+          starRating={value}
+          onChange={(next) => onChange(next > 0 ? next : null)}
+          expanded
+          tone="onCard"
+        />
       </div>
     </div>
   );

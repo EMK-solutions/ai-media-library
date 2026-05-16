@@ -3,12 +3,14 @@ import {
   Cpu,
   FileText,
   FolderOpen,
+  Heart,
   MapPin,
   MoreHorizontal,
   Scale,
   Search,
   Shapes,
   Sparkles,
+  UserPlus,
   Users,
   Wand2,
 } from "lucide-react";
@@ -21,7 +23,14 @@ export const GUIDED_SLIDE_IDS = {
   privacyLocal: "privacy-local",
   licensesOpenSource: "licenses-open-source-and-models",
   peopleFacesCore: "people-faces-core",
-  peopleFacesDeep: "people-faces-deep",
+  peopleTagsVisualOverview: "people-tags-visual-overview",
+  peopleTagsStepsOneTwo: "people-tags-steps-one-two",
+  peopleTagsStepsThreeFour: "people-tags-steps-three-four",
+  peopleTagsFaceTaggingUntagged: "people-tags-face-tagging-untagged",
+  peopleTagsFaceTaggingTaggedViewer: "people-tags-face-tagging-tagged-viewer",
+  peopleTagsSmartAlbumGroups: "people-tags-smart-album-groups",
+  peopleGroupsUpcoming: "people-groups-upcoming",
+  peopleBirthDateUpcoming: "people-birth-date-upcoming",
   searchPlainLanguage: "search-plain-language",
   ollamaOverview: "ollama-overview",
   geoDatesRotation: "geolocation-dates-rotation",
@@ -43,11 +52,6 @@ export const PRODUCT_WELCOME_SLIDE_ORDER: readonly string[] = [
   GUIDED_SLIDE_IDS.aiImageAnalysis,
   GUIDED_SLIDE_IDS.smartAlbumsOverview,
   GUIDED_SLIDE_IDS.onboardingNextSteps,
-];
-
-export const PEOPLE_FACES_HELP_SLIDE_ORDER: readonly string[] = [
-  GUIDED_SLIDE_IDS.peopleFacesCore,
-  GUIDED_SLIDE_IDS.peopleFacesDeep,
 ];
 
 export function buildGuidedSlideDeckFromIds(
@@ -136,15 +140,138 @@ export function getGuidedSlideConfig(slideId: string, _flow: GuidedSlideFlowKind
         ],
       };
 
-    case GUIDED_SLIDE_IDS.peopleFacesDeep:
+    case GUIDED_SLIDE_IDS.peopleTagsVisualOverview:
       return {
         id: slideId,
-        slideHeadline: "People in smart albums",
+        slideHeadline: "People tags",
+        hideFlowSubtitle: true,
+        icon: Users,
+        featureHighlightsLayout: "flow-row",
+        featureHighlights: [
+          { icon: Sparkles, label: "Run face detection" },
+          { icon: UserPlus, label: "Create people" },
+          { icon: Users, label: "Tag several faces" },
+          { icon: Search, label: "Filter & search" },
+        ],
+        blocks: [],
+      };
+
+    case GUIDED_SLIDE_IDS.peopleTagsStepsOneTwo:
+      return {
+        id: slideId,
+        slideHeadline: "People tags",
+        hideFlowSubtitle: true,
         icon: Users,
         blocks: [
           {
-            title: "Combine people with ratings and time",
-            body: "Smart album presets can layer people tags with manual star rating and AI aesthetic rating, plus time or location, so recurring views stay useful as the library grows.",
+            title: "1. Run face detection",
+            body: "Run face detection on folders where you expect those people to appear so the app can find faces to cluster and suggest.",
+          },
+          {
+            title: "2. Create people",
+            body: "Add person tags from the People list, or when you name a face group in Untagged faces.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.peopleTagsStepsThreeFour:
+      return {
+        id: slideId,
+        slideHeadline: "People tags",
+        hideFlowSubtitle: true,
+        icon: Users,
+        blocks: [
+          {
+            title: "3. Tag several faces",
+            body: "Assign several clear faces per person in Untagged faces, or from the photo viewer’s info panel. 5–20 confirmations per person is typically enough to see good suggestions of similar faces. More will improve the match. Favor sharp, front-facing faces so suggestions stay accurate.",
+          },
+          {
+            title: "4. Filter & search",
+            body: "Use person filters when browsing folders or albums. The “Include unconfirmed similar faces” option allows the same search to list both manually tagged faces and other faces that look similar, so you don’t need to tag manually hundreds of faces.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.peopleTagsFaceTaggingUntagged:
+      return {
+        id: slideId,
+        slideHeadline: "Untagged faces",
+        hideFlowSubtitle: true,
+        icon: Users,
+        blocks: [
+          {
+            title: "Group and bulk-tag",
+            body: "The Untagged faces tab groups similar faces that do not have a person yet. Pick a person for a group, work through faces in pages, and use row actions to accept or hide suggestions. Assign at least 5–10 strong examples per person when you can; roughly 30–50 confirmed faces per person is often enough without tagging every appearance.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.peopleTagsFaceTaggingTaggedViewer:
+      return {
+        id: slideId,
+        slideHeadline: "Tagged faces & photo viewer",
+        hideFlowSubtitle: true,
+        icon: Users,
+        blocks: [
+          {
+            title: "Refine one person at a time",
+            body: "The Tagged faces tab lists faces already assigned to the selected person at the top, with suggested similar faces below. You can confirm or reject suggestions in small groups of five faces, skipping individual faces when needed.",
+          },
+          {
+            title: "Tag from the photo viewer",
+            body: "While browsing any photo, open the info panel and use the face tags there to assign or adjust people without leaving the viewer. You can also remove not relevant faces.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.peopleTagsSmartAlbumGroups:
+      return {
+        id: slideId,
+        slideHeadline: "Smart albums & people groups",
+        hideFlowSubtitle: true,
+        icon: FolderOpen,
+        blocks: [
+          {
+            title: "Albums built on a people group",
+            body: "Pick a People group in a smart album to gather the best shots of everyone in that set—for example a School group, a University group, or any set you define. Combine it with filters such as star rating so the album highlights strong photos of those people together.",
+          },
+          {
+            title: "More than one group",
+            body: "Selecting several People groups applies their intersection. For example, selecting both School and University groups will show only images of people that belong to both these groups.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.peopleGroupsUpcoming:
+      return {
+        id: slideId,
+        slideHeadline: "People groups",
+        icon: Users,
+        blocks: [
+          {
+            title: "Organize several people together",
+            body: "Named groups bundle several person tags so you can filter or review them as a set.",
+          },
+          {
+            title: "On the roadmap for smart albums",
+            body: "The first preset that uses groups will be “Best of People group”—similar to Best of Year but focused on a chosen group instead of splitting by year. You could still narrow by year through album filters later.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.peopleBirthDateUpcoming:
+      return {
+        id: slideId,
+        slideHeadline: "Birth date & age",
+        icon: Heart,
+        blocks: [
+          {
+            title: "Context for faces",
+            body: "A birth date lets the app relate a person’s face to an approximate age when a photo’s date is reliable.",
+          },
+          {
+            title: "On the roadmap for smart albums",
+            body: "Age-aware smart album ideas (for example life-stage timelines) are planned but are not available in presets yet.",
           },
         ],
       };

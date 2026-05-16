@@ -57,6 +57,12 @@ export type ActiveSmartAlbum =
       kind: "best-of-year";
       year: string;
     }
+  | {
+      kind: "best-of-people-group";
+    }
+  | {
+      kind: "best-of-person-people";
+    }
   | null;
 
 export function useSmartAlbums(defaultFilters = DEFAULT_SMART_ALBUM_FILTERS): {

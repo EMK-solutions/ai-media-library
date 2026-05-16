@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactElement,
 } from "react";
@@ -10,15 +11,18 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  RefreshCw,
   Sparkles,
   UserPlus,
   Users,
   X,
+  HelpCircle,
 } from "lucide-react";
 import type { PeopleWorkspaceOpenFacePhotoFn } from "@emk/media-viewer";
 import type {
   ClusterPersonCentroidMatchStats,
   DesktopPersonTag,
+  FaceClusteringStats,
   FaceClusterFaceInfo,
   FaceClusterInfo,
   FaceClusterTagSuggestion,
@@ -32,6 +36,7 @@ import { chunkArray } from "./face-cluster-utils";
 import { groupRepresentativeFaceIdsByTag } from "../lib/group-rep-similarity-by-tag";
 import { logUntaggedLoadRenderer } from "../lib/untagged-load-log";
 import { untaggedTabLog } from "../lib/untagged-tab-trace";
+import { shouldAutoFindFaceGroups } from "../lib/face-clustering-auto";
 
 const CLUSTER_LIST_PAGE_SIZE = 10;
 const CLUSTER_FACE_GRID_COLS = 5;
@@ -66,9 +71,10 @@ function sortFaceIdsBySimilarityDesc(
 const UI_TEXT = {
   title: "Untagged faces",
   description:
-    "Auto-grouped faces that haven't been assigned a person tag yet. Name a group to assign all its faces at once.",
+    "Auto-grouped faces without a person tag yet. Assign a person to the group to bulk-tag faces for that person. Assigning a person does not automatically tag every face in the group.",
   runClustering: "Find groups",
-  refresh: "Refresh",
+  refreshAriaLabel: "Refresh face groups list",
+  helpAria: "People & faces overview",
   empty: "No face clusters found. Run face detection with embeddings first, then click \"Find groups\".",
   members: "faces",
   nameGroup: "Name this person",
@@ -122,8 +128,10 @@ async function fetchSimilaritiesBatched(
 
 export function DesktopFaceClusterGrid({
   onOpenFacePhoto,
+  onOpenPeopleModuleHelp,
 }: {
   onOpenFacePhoto: PeopleWorkspaceOpenFacePhotoFn;
+  onOpenPeopleModuleHelp: () => void;
 }): ReactElement {
   const store = useDesktopStoreApi();
   const faceClusteringStatus = useDesktopStore((s) => s.faceClusteringStatus);
@@ -171,6 +179,9 @@ export function DesktopFaceClusterGrid({
   const [personFilteredMemberIdsByKey, setPersonFilteredMemberIdsByKey] = useState<
     Record<string, string[]>
   >({});
+  const [clusteringStats, setClusteringStats] = useState<FaceClusteringStats | null>(null);
+  const autoFindGroupsTriggeredRef = useRef(false);
+  const isClusteringRunning = faceClusteringStatus === "running";
 
   useEffect(() => {
     untaggedTabLog("DesktopFaceClusterGrid mounted");
@@ -189,9 +200,10 @@ export function DesktopFaceClusterGrid({
     try {
       const tList = performance.now();
       const offset = listPage * CLUSTER_LIST_PAGE_SIZE;
-      const [pageResult, tags] = await Promise.all([
+      const [pageResult, tags, stats] = await Promise.all([
         window.desktopApi.getFaceClusters({ offset, limit: CLUSTER_LIST_PAGE_SIZE }),
         window.desktopApi.listPersonTags(),
+        window.desktopApi.getFaceClusteringStats(),
       ]);
       const clusterData = pageResult.clusters;
       const msList = performance.now() - tList;
@@ -209,6 +221,7 @@ export function DesktopFaceClusterGrid({
       setClusters(clusterData);
       setClusterTotalCount(pageResult.totalCount);
       setPersonTags(tags);
+      setClusteringStats(stats);
       setLoadedFaceIdsByClusterId({});
       setClusterMemberPageById({});
       setPersonFilteredMemberIdsByKey({});
@@ -554,7 +567,7 @@ export function DesktopFaceClusterGrid({
     matchThreshold,
   ]);
 
-  const handleRunClustering = async () => {
+  const handleRunClustering = useCallback(async (): Promise<void> => {
     setErrorMessage(null);
     // Show immediate feedback in the dock and button before IPC/main work starts.
     store.setState((s) => {
@@ -580,7 +593,28 @@ export function DesktopFaceClusterGrid({
         s.faceClusteringError = message;
       });
     }
-  };
+  }, [faceGroupMinSize, faceGroupPairwiseSimilarityThreshold, store]);
+
+  useEffect(() => {
+    if (
+      shouldAutoFindFaceGroups({
+        clusterTotalCount,
+        stats: clusteringStats,
+        isLoading,
+        isClusteringRunning,
+        alreadyTriggered: autoFindGroupsTriggeredRef.current,
+      })
+    ) {
+      autoFindGroupsTriggeredRef.current = true;
+      void handleRunClustering();
+    }
+  }, [
+    clusterTotalCount,
+    clusteringStats,
+    handleRunClustering,
+    isClusteringRunning,
+    isLoading,
+  ]);
 
   const loadClusterMemberPage = useCallback(async (cluster: FaceClusterInfo, memberPage: number) => {
     const offset = memberPage * CLUSTER_MEMBER_PAGE_SIZE;
@@ -736,8 +770,7 @@ export function DesktopFaceClusterGrid({
   const isExpanded = (clusterId: string) =>
     expandedCluster?.clusterId === clusterId;
   const assigningFaceSet = useMemo(() => new Set(assigningFaceIds), [assigningFaceIds]);
-
-  const isClusteringRunning = faceClusteringStatus === "running";
+  const isEmptyBusy = clusters.length === 0 && (isLoading || isClusteringRunning);
 
   const similarityHighPctLabel = formatSimilarityPercent(matchThreshold);
   const similarityLowBand = Math.max(0, matchThreshold - 0.1);
@@ -745,14 +778,27 @@ export function DesktopFaceClusterGrid({
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-8">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold md:text-4xl">{UI_TEXT.title}</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-3xl font-bold md:text-4xl">{UI_TEXT.title}</h1>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenPeopleModuleHelp();
+              }}
+              className="inline-flex size-[33px] shrink-0 items-center justify-center rounded-full border border-border p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label={UI_TEXT.helpAria}
+              title={UI_TEXT.helpAria}
+            >
+              <HelpCircle className="size-[29px]" aria-hidden />
+            </button>
+          </div>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
             {UI_TEXT.description}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 md:pt-1">
           <button
             type="button"
             onClick={() => void handleRunClustering()}
@@ -778,9 +824,15 @@ export function DesktopFaceClusterGrid({
               void loadClusters(0);
             }}
             disabled={isLoading || isClusteringRunning}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm"
+            title={UI_TEXT.refreshAriaLabel}
+            aria-label={UI_TEXT.refreshAriaLabel}
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
-            {isLoading ? "Loading..." : UI_TEXT.refresh}
+            {isLoading ? (
+              <Loader2 className="size-8 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-8" aria-hidden />
+            )}
           </button>
         </div>
       </header>
@@ -791,7 +843,12 @@ export function DesktopFaceClusterGrid({
         </p>
       ) : null}
 
-      {clusters.length === 0 && !isLoading ? (
+      {isEmptyBusy ? (
+        <div className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
+          <Loader2 className="mx-auto mb-3 size-10 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Finding face groups...</p>
+        </div>
+      ) : clusters.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
           <Users className="mx-auto mb-3 size-10 text-muted-foreground/60" />
           <p className="text-sm text-muted-foreground">{UI_TEXT.empty}</p>
@@ -868,7 +925,9 @@ export function DesktopFaceClusterGrid({
                 className="rounded-xl border border-border bg-card shadow-sm"
               >
                 <div
-                  className="flex cursor-pointer items-center gap-4 p-4"
+                  className={`flex cursor-pointer items-center gap-4 border border-transparent p-4 transition-colors duration-150 hover:border-border hover:bg-muted/50 ${
+                    expanded ? "rounded-t-xl" : "rounded-xl"
+                  }`}
                   onClick={() => void handleExpandCluster(cluster)}
                 >
                   {representativeFace ? (
@@ -982,7 +1041,11 @@ export function DesktopFaceClusterGrid({
                       <>
                         {personTags.length > 0 ? (
                           <select
-                            className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                            className={`h-8 rounded-md border bg-background px-2 text-xs ${
+                              expanded && !selectedTargetTagId
+                                ? "border-amber-500 ring-1 ring-amber-500/40"
+                                : "border-border"
+                            }`}
                             value={selectedTargetTagId}
                             disabled={isAssigning}
                             onChange={(event) => {
@@ -1021,7 +1084,11 @@ export function DesktopFaceClusterGrid({
                             type="button"
                             onClick={() => handleStartNaming(cluster.clusterId)}
                             disabled={isAssigning}
-                            className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs hover:bg-muted"
+                            className={`inline-flex h-8 items-center gap-1 rounded-md border px-3 text-xs hover:bg-muted ${
+                              expanded
+                                ? "border-amber-500 ring-1 ring-amber-500/40"
+                                : "border-border"
+                            }`}
                           >
                             <UserPlus className="size-3" />
                             {UI_TEXT.nameGroup}

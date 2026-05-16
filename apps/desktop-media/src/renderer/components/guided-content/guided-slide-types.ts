@@ -25,7 +25,16 @@ export interface GuidedSlideConfig {
   icon: LucideIcon;
   /** Optional icon row (e.g. welcome slide 1). When set, `blocks` may be empty. */
   featureHighlights?: readonly { icon: LucideIcon; label: string; caption?: string }[];
+  /**
+   * `grid` (default): bordered cards in a grid. `flow-row`: horizontal step strip with arrows between items.
+   */
+  featureHighlightsLayout?: "grid" | "flow-row";
   blocks: readonly GuidedContentBlock[];
+  /**
+   * With `slideHeadlineAsPrimaryExceptFirst`, slide headlines larger than `flowTitle` omit the smaller
+   * secondary line (the flow title) when true.
+   */
+  hideFlowSubtitle?: boolean;
 }
 
 export interface GuidedSlideDeck {

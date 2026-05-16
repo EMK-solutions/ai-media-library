@@ -12,7 +12,7 @@ import type { AlbumMediaItem } from "@emk/shared-contracts";
 import type { DesktopStore } from "../stores/desktop-store";
 import { useMediaItemStarRatingChange } from "../hooks/use-media-item-star-rating-change";
 import { toFileUrl } from "./face-cluster-utils";
-import { PeoplePaginationBar } from "./people-pagination-bar";
+import { PeoplePaginationBar, peoplePaginationTotalPages } from "./people-pagination-bar";
 import { DesktopMediaItemActionsMenu } from "./DesktopMediaItemActionsMenu";
 import { ALBUM_ITEMS_PAGE_SIZE, albumItemToViewerEntry } from "./DesktopAlbumDetailPanel";
 import { lookupMediaMetadataByItemId } from "../lib/media-metadata-lookup";
@@ -20,6 +20,7 @@ import type { DesktopMediaItemMetadata } from "../../shared/ipc";
 import { useDesktopStore } from "../stores/desktop-store";
 import { DesktopMediaItemListRow } from "./DesktopMediaItemListRow";
 import { formatPhotoTakenListLabel } from "../lib/photo-date-format";
+import { cn } from "../lib/cn";
 
 function thumbnailQuickFilterInputForPath(
   itemId: string,
@@ -68,6 +69,11 @@ function renderListThumbnail(item: AlbumMediaItem): ReactElement {
   );
 }
 
+function albumPaginationBarVisible(totalItems: number, pageSize: number): boolean {
+  const totalPages = peoplePaginationTotalPages(totalItems, pageSize);
+  return !(totalPages <= 1 && totalItems <= pageSize);
+}
+
 export function DesktopAlbumContentGrid({
   store,
   albumId,
@@ -80,6 +86,9 @@ export function DesktopAlbumContentGrid({
   onAlbumContentChanged,
   reorderAlbumMediaItem,
   onFindSimilar,
+  emptyAlbumMessage,
+  emptyAlbumMessageEmphasis,
+  thumbScrollPaddingClass,
 }: {
   store: DesktopStore;
   albumId?: string;
@@ -93,6 +102,12 @@ export function DesktopAlbumContentGrid({
   /** When set with `albumId` and no active quick filters, grid view allows drag-reorder (manual albums). */
   reorderAlbumMediaItem?: (params: ReorderAlbumMediaItemParams) => Promise<void>;
   onFindSimilar?: (filePath: string) => void;
+  /** Overrides the default empty-album copy when there are no items. */
+  emptyAlbumMessage?: string;
+  /** When true with `emptyAlbumMessage`, empty copy uses larger amber styling. */
+  emptyAlbumMessageEmphasis?: boolean;
+  /** Extra classes on the scrollable thumb/list region (e.g. smart album horizontal inset). */
+  thumbScrollPaddingClass?: string;
 }): ReactElement {
   const mediaMetadataByItemId = useDesktopStore((s) => s.mediaMetadataByItemId);
   const dateFormat = useDesktopStore((s) => s.mediaViewerSettings.dateFormat);
@@ -140,112 +155,144 @@ export function DesktopAlbumContentGrid({
     [commitStarRating],
   );
 
+  const showPagination = albumPaginationBarVisible(albumItemsTotal, ALBUM_ITEMS_PAGE_SIZE);
+
+  const paginationFooter = (
+    <div className="shrink-0 border-t border-border bg-background px-4 py-2">
+      <PeoplePaginationBar
+        ariaLabel="Album items pagination"
+        currentPage={albumItemsPage}
+        totalItems={albumItemsTotal}
+        pageSize={ALBUM_ITEMS_PAGE_SIZE}
+        onPageChange={onAlbumItemsPageChange}
+      />
+    </div>
+  );
+
   if (albumItems.length === 0) {
+    const emptyCopy = emptyAlbumMessage ?? "This album is empty.";
+    const emphasizeEmpty = emptyAlbumMessageEmphasis === true && Boolean(emptyAlbumMessage);
     return (
-      <div className="m-4 rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-        This album is empty.
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 items-center justify-center p-8">
+          <div
+            className={cn(
+              "max-w-md text-center",
+              emphasizeEmpty
+                ? "text-base font-medium text-amber-600 dark:text-amber-400 md:text-lg"
+                : "text-sm text-muted-foreground",
+            )}
+          >
+            {emptyCopy}
+          </div>
+        </div>
+        {showPagination ? paginationFooter : null}
       </div>
     );
   }
 
   if (filteredAlbumItems.length === 0) {
     return (
-      <div className="m-4 rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-        No album items match the current filters.
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 items-center justify-center p-8">
+          <div className="max-w-md text-center text-sm text-muted-foreground">
+            No album items match the current filters.
+          </div>
+        </div>
+        {showPagination ? paginationFooter : null}
       </div>
     );
   }
 
   return (
-    <>
-      {viewMode === "grid" ? (
-        <MediaThumbnailGrid
-          items={filteredAlbumItems.map((item) => ({
-            id: item.sourcePath,
-            title: item.title,
-            imageUrl: toFileUrl(item.sourcePath),
-            starRating: item.starRating,
-            onStarRatingChange: onStarRatingChangeForPath(item.sourcePath),
-            mediaType: item.mediaKind,
-          }))}
-          onItemClick={(index) => {
-            store.getState().openViewer(index, "album", {
-              itemListOverride: viewerEntries,
-              autoPlayInitialVideo: filteredAlbumItems[index]?.mediaKind === "video",
-            });
-          }}
-          renderActions={(item) => (
-            <DesktopMediaItemActionsMenu
-              filePath={item.id}
-              mediaType={item.mediaType}
-              albumContext={
-                albumId
-                  ? {
-                      albumId,
-                      onAlbumChanged: onAlbumContentChanged,
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className={cn("min-h-0 flex-1 overflow-auto", thumbScrollPaddingClass ?? "")}>
+        {viewMode === "grid" ? (
+          <MediaThumbnailGrid
+            items={filteredAlbumItems.map((item) => ({
+              id: item.sourcePath,
+              title: item.title,
+              imageUrl: toFileUrl(item.sourcePath),
+              starRating: item.starRating,
+              onStarRatingChange: onStarRatingChangeForPath(item.sourcePath),
+              mediaType: item.mediaKind,
+            }))}
+            onItemClick={(index) => {
+              store.getState().openViewer(index, "album", {
+                itemListOverride: viewerEntries,
+                autoPlayInitialVideo: filteredAlbumItems[index]?.mediaKind === "video",
+              });
+            }}
+            renderActions={(item) => (
+              <DesktopMediaItemActionsMenu
+                filePath={item.id}
+                mediaType={item.mediaType}
+                albumContext={
+                  albumId
+                    ? {
+                        albumId,
+                        onAlbumChanged: onAlbumContentChanged,
+                      }
+                    : undefined
+                }
+                onFindSimilar={onFindSimilar}
+              />
+            )}
+            dragReorder={albumDragReorder}
+            priorityCount={24}
+            scrollable={false}
+          />
+        ) : (
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-2 overflow-visible lg:grid-cols-2 lg:gap-3",
+              thumbScrollPaddingClass ?? "p-4",
+            )}
+          >
+            {filteredAlbumItems.map((item, index) =>
+              (() => {
+                const metadata = lookupMediaMetadataByItemId<DesktopMediaItemMetadata>(
+                  item.sourcePath,
+                  mediaMetadataByItemId,
+                );
+                return (
+                  <DesktopMediaItemListRow
+                    key={item.id}
+                    title={item.title}
+                    metadataLine={formatPhotoTakenListLabel(
+                      metadata?.photoTakenAt ?? null,
+                      metadata?.fileCreatedAt ?? null,
+                      metadata?.photoTakenPrecision ?? null,
+                      dateFormat,
+                    )}
+                    filePath={item.sourcePath}
+                    mediaType={item.mediaKind}
+                    thumbnail={renderListThumbnail(item)}
+                    starRating={item.starRating}
+                    onStarRatingChange={onStarRatingChangeForPath(item.sourcePath)}
+                    albumContext={
+                      albumId
+                        ? {
+                            albumId,
+                            onAlbumChanged: onAlbumContentChanged,
+                          }
+                        : undefined
                     }
-                  : undefined
-              }
-              onFindSimilar={onFindSimilar}
-            />
-          )}
-          dragReorder={albumDragReorder}
-          priorityCount={24}
-          scrollable={false}
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-2 overflow-visible p-4 lg:grid-cols-2 lg:gap-3">
-          {filteredAlbumItems.map((item, index) => (
-            (() => {
-              const metadata = lookupMediaMetadataByItemId<DesktopMediaItemMetadata>(
-                item.sourcePath,
-                mediaMetadataByItemId,
-              );
-              return (
-                <DesktopMediaItemListRow
-                  key={item.id}
-                  title={item.title}
-                  metadataLine={formatPhotoTakenListLabel(
-                    metadata?.photoTakenAt ?? null,
-                    metadata?.fileCreatedAt ?? null,
-                    metadata?.photoTakenPrecision ?? null,
-                    dateFormat,
-                  )}
-                  filePath={item.sourcePath}
-                  mediaType={item.mediaKind}
-                  thumbnail={renderListThumbnail(item)}
-                  starRating={item.starRating}
-                  onStarRatingChange={onStarRatingChangeForPath(item.sourcePath)}
-                  albumContext={
-                    albumId
-                      ? {
-                          albumId,
-                          onAlbumChanged: onAlbumContentChanged,
-                        }
-                      : undefined
-                  }
-                  onRowClick={() => {
-                    store.getState().openViewer(index, "album", {
-                      itemListOverride: viewerEntries,
-                      autoPlayInitialVideo: item.mediaKind === "video",
-                    });
-                  }}
-                  onFindSimilar={onFindSimilar}
-                />
-              );
-            })()
-          ))}
-        </div>
-      )}
-      <div className="px-4 pb-4">
-        <PeoplePaginationBar
-          ariaLabel="Album items pagination"
-          currentPage={albumItemsPage}
-          totalItems={albumItemsTotal}
-          pageSize={ALBUM_ITEMS_PAGE_SIZE}
-          onPageChange={onAlbumItemsPageChange}
-        />
+                    onRowClick={() => {
+                      store.getState().openViewer(index, "album", {
+                        itemListOverride: viewerEntries,
+                        autoPlayInitialVideo: item.mediaKind === "video",
+                      });
+                    }}
+                    onFindSimilar={onFindSimilar}
+                  />
+                );
+              })(),
+            )}
+          </div>
+        )}
       </div>
-    </>
+      {showPagination ? paginationFooter : null}
+    </div>
   );
 }

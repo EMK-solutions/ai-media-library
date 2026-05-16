@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, Fragment, type ReactElement } from "react";
 import type { GuidedSlideConfig } from "./guided-slide-types";
 import { GuidedContentBlockView } from "./guided-content-block";
 
@@ -15,6 +15,11 @@ export function GuidedSlideModal({
    * slides 1+ swap so `slideHeadline` is large and `flowTitle` is the smaller line (product welcome).
    */
   slideHeadlineAsPrimaryExceptFirst = false,
+  /**
+   * When true with `slideHeadlineAsPrimaryExceptFirst`: on slide 0 only, the large heading is
+   * `slideHeadline` and there is no subtitle (e.g. People module help). Welcome / other decks omit this.
+   */
+  firstSlideUseSlideHeadlineAsSolePrimary = false,
   onSlideAction,
 }: {
   open: boolean;
@@ -23,6 +28,7 @@ export function GuidedSlideModal({
   slides: readonly GuidedSlideConfig[];
   initialSlideIndex?: number;
   slideHeadlineAsPrimaryExceptFirst?: boolean;
+  firstSlideUseSlideHeadlineAsSolePrimary?: boolean;
   /** In-slide buttons (e.g. open reference sheet); parent interprets `actionId`. */
   onSlideAction?: (actionId: string) => void;
 }): ReactElement | null {
@@ -53,29 +59,46 @@ export function GuidedSlideModal({
   const slide = slides[index] ?? slides[0];
   const Icon = slide.icon;
 
-  const useSlideHeadlinePrimary = slideHeadlineAsPrimaryExceptFirst === true && index > 0;
   const slideHeadlineTrimmed = slide.slideHeadline.trim();
-  const primaryHeading = useSlideHeadlinePrimary
-    ? slideHeadlineTrimmed.length > 0
-      ? slide.slideHeadline
-      : flowTitle
-    : flowTitle;
-  const secondaryHeading = useSlideHeadlinePrimary
-    ? slideHeadlineTrimmed.length > 0
-      ? flowTitle
-      : null
-    : slide.slideHeadline.trim().length > 0
-      ? slide.slideHeadline
-      : null;
+  const solePrimaryFirst =
+    slideHeadlineAsPrimaryExceptFirst === true &&
+    firstSlideUseSlideHeadlineAsSolePrimary === true &&
+    index === 0 &&
+    slideHeadlineTrimmed.length > 0;
+  const useSlideHeadlinePrimary =
+    slideHeadlineAsPrimaryExceptFirst === true && index > 0 && !solePrimaryFirst;
+
+  let primaryHeading: string;
+  let secondaryHeading: string | null;
+  if (solePrimaryFirst) {
+    primaryHeading = slide.slideHeadline;
+    secondaryHeading = null;
+  } else if (useSlideHeadlinePrimary) {
+    primaryHeading = slideHeadlineTrimmed.length > 0 ? slide.slideHeadline : flowTitle;
+    secondaryHeading =
+      slideHeadlineTrimmed.length > 0 && slide.hideFlowSubtitle !== true ? flowTitle : null;
+  } else {
+    primaryHeading = flowTitle;
+    secondaryHeading = slideHeadlineTrimmed.length > 0 ? slide.slideHeadline : null;
+  }
 
   const highlights = slide.featureHighlights ?? [];
+  const highlightsLayout = slide.featureHighlightsLayout ?? "grid";
 
   /** Matches `Icon` size so body copy lines up with the heading text column. */
   const iconRailClass = "flex w-[76px] shrink-0 justify-center";
+  const flowHeaderRailClass =
+    highlightsLayout === "flow-row" ? "flex w-10 shrink-0 justify-center md:w-12" : iconRailClass;
 
   const headerAlignClass = secondaryHeading == null ? "items-center" : "items-start";
   /** Match header `pr-12` (close button) so body + footer align with title text from slide 2 onward. */
   const contentRightInsetClass = index > 0 ? "pr-12" : "";
+  const isFlowRowVisualOnly =
+    highlightsLayout === "flow-row" &&
+    highlights.length > 0 &&
+    slide.blocks.length === 0;
+  /** Flow strip: omit right-only inset so the row is centered horizontally in the panel. */
+  const bodyContentInsetClass = isFlowRowVisualOnly ? "" : contentRightInsetClass;
 
   const modal = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-5 backdrop-blur-sm">
@@ -100,8 +123,16 @@ export function GuidedSlideModal({
               <X size={18} aria-hidden="true" />
             </button>
             <div className={`mx-auto flex w-full max-w-5xl gap-3 pr-12 ${headerAlignClass}`}>
-              <div className={`${iconRailClass} ${secondaryHeading == null ? "self-center pt-0" : "pt-1"}`}>
-                <Icon size={76} className="shrink-0 text-primary" aria-hidden="true" />
+              <div
+                className={`${highlightsLayout === "flow-row" ? flowHeaderRailClass : iconRailClass} ${
+                  secondaryHeading == null ? "self-center pt-0" : "pt-1"
+                }`}
+              >
+                <Icon
+                  size={highlightsLayout === "flow-row" ? 56 : 76}
+                  className="shrink-0 text-primary"
+                  aria-hidden="true"
+                />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="m-0 line-clamp-3 break-words text-3xl font-semibold leading-snug text-foreground md:text-4xl md:leading-snug">
@@ -119,9 +150,50 @@ export function GuidedSlideModal({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
             <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 md:px-10">
               <div
-                className={`mx-auto flex min-h-[min(100%,72vh)] w-full max-w-5xl flex-col justify-evenly gap-10 py-10 md:gap-14 md:py-12 ${contentRightInsetClass}`}
+                className={`mx-auto flex min-h-[min(100%,72vh)] w-full max-w-5xl flex-col justify-evenly gap-10 py-10 md:gap-14 md:py-12 ${bodyContentInsetClass}`}
               >
-                {highlights.length > 0 ? (
+                {highlights.length > 0 && highlightsLayout === "flow-row" ? (
+                  <div className="flex w-full min-w-0 flex-col items-center gap-2">
+                    <div className="flex w-full min-w-0 max-w-5xl items-center justify-stretch">
+                      {highlights.map((row, hi) => {
+                        const RowIcon = row.icon;
+                        return (
+                          <Fragment key={`${row.label}-icon-${hi}`}>
+                            {hi > 0 ? (
+                              <span
+                                className="flex h-14 w-3 shrink-0 items-center justify-center md:h-[4.25rem] md:w-3.5"
+                                aria-hidden
+                              >
+                                <span className="origin-center scale-y-[2.05] text-3xl font-semibold leading-none text-primary/80 md:scale-y-[1.95] md:text-4xl">
+                                  &gt;
+                                </span>
+                              </span>
+                            ) : null}
+                            <div className="flex min-w-0 flex-1 justify-center">
+                              <RowIcon
+                                className="size-14 shrink-0 text-primary md:size-[4.25rem]"
+                                aria-hidden
+                              />
+                            </div>
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                    <div className="flex w-full min-w-0 max-w-5xl items-start justify-stretch">
+                      {highlights.map((row, hi) => (
+                        <Fragment key={`${row.label}-label-${hi}`}>
+                          {hi > 0 ? <span className="w-3 shrink-0 md:w-3.5" aria-hidden /> : null}
+                          <div className="flex min-w-0 flex-1 flex-col items-center text-center">
+                            <span className="text-base font-semibold leading-snug text-foreground md:text-xl md:leading-snug">
+                              {row.label}
+                            </span>
+                          </div>
+                        </Fragment>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {highlights.length > 0 && highlightsLayout !== "flow-row" ? (
                   <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 md:gap-4">
                     {highlights.map((row, hi) => {
                       const RowIcon = row.icon;
@@ -163,7 +235,7 @@ export function GuidedSlideModal({
           </div>
 
           <div className="relative z-10 shrink-0 border-t border-primary/25 bg-background px-6 py-4 md:px-10">
-            <div className={`mx-auto flex w-full max-w-5xl gap-3 ${contentRightInsetClass}`}>
+            <div className="mx-auto flex w-full max-w-5xl gap-3 pr-12">
               <div className={iconRailClass} aria-hidden="true" />
               <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                 <div className="min-w-[94px]">

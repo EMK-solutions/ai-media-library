@@ -1,5 +1,7 @@
 import { type ReactElement } from "react";
 import { Search, X } from "lucide-react";
+import { albumFilterActiveInputClasses } from "../lib/album-filter-active-styles";
+import { cn } from "../lib/cn";
 import { Input } from "./ui/input";
 
 const UI_TEXT = {
@@ -36,7 +38,13 @@ export function PeopleTagsNameSearchField({
           }
         }}
         aria-label={UI_TEXT.filterAriaLabel}
-        className={`h-9 py-1.5 pl-9 text-sm md:text-sm${value.length > 0 ? " pr-9" : ""}`}
+        className={cn(
+          "h-9 border bg-ai-search-control py-1.5 pl-9 text-sm text-ai-search-text placeholder:text-ai-search-muted/75 md:text-sm",
+          value.length > 0 ? "pr-9" : "",
+          value.trim().length > 0
+            ? albumFilterActiveInputClasses
+            : "border-ai-search-border focus-visible:border-ai-search-accent focus-visible:ring-ai-search-accent/45",
+        )}
       />
       {value.length > 0 ? (
         <button

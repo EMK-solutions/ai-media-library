@@ -1,5 +1,5 @@
 import { type ReactElement } from "react";
-import { Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, HelpCircle, Loader2, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useDesktopPeopleGroupsTab } from "../hooks/use-desktop-people-groups-tab";
 import { ConfirmActionDialog } from "./ConfirmActionDialog";
 import { PeopleMembershipChip } from "./people-membership-chip";
@@ -9,7 +9,8 @@ const UI_TEXT = {
   title: "People groups",
   description:
     "Organize people into named groups. Deleting a group removes only the grouping, not person tags.",
-  refresh: "Refresh",
+  refreshAriaLabel: "Refresh people groups",
+  helpAria: "People & faces overview",
   empty: "No groups yet. Create one from the People tab or add a group here.",
   noMembers: "No people assigned.",
   namePlaceholder: "Group name",
@@ -24,7 +25,11 @@ const UI_TEXT = {
 const revealOnGroupRowHover =
   "transition-opacity duration-150 max-sm:opacity-100 sm:opacity-0 sm:group-hover/groupRow:opacity-100 sm:group-focus-within/groupRow:opacity-100";
 
-export function DesktopPeopleGroupsTab(): ReactElement {
+export function DesktopPeopleGroupsTab({
+  onOpenPeopleModuleHelp,
+}: {
+  onOpenPeopleModuleHelp: () => void;
+}): ReactElement {
   const {
     groups,
     membersByGroupId,
@@ -51,21 +56,42 @@ export function DesktopPeopleGroupsTab(): ReactElement {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-8">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold md:text-4xl">{UI_TEXT.title}</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-3xl font-bold md:text-4xl">{UI_TEXT.title}</h1>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenPeopleModuleHelp();
+              }}
+              className="inline-flex size-[33px] shrink-0 items-center justify-center rounded-full border border-border p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label={UI_TEXT.helpAria}
+              title={UI_TEXT.helpAria}
+            >
+              <HelpCircle className="size-[29px]" aria-hidden />
+            </button>
+          </div>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
             {UI_TEXT.description}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={isLoading}
-          className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border px-3 text-sm"
-        >
-          {isLoading ? "Loading..." : UI_TEXT.refresh}
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5 md:pt-1">
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={isLoading}
+            title={UI_TEXT.refreshAriaLabel}
+            aria-label={UI_TEXT.refreshAriaLabel}
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+          >
+            {isLoading ? (
+              <Loader2 className="size-8 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-8" aria-hidden />
+            )}
+          </button>
+        </div>
       </header>
 
       {errorMessage ? (

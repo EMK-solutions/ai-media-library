@@ -1,12 +1,23 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import type { PeopleWorkspaceOpenFacePhotoFn } from "@emk/media-viewer";
 import { untaggedTabLog } from "../lib/untagged-tab-trace";
 import { DesktopPeopleTagsListTab } from "./DesktopPeopleTagsListTab";
 import { DesktopPeopleWorkspace } from "./DesktopPeopleWorkspace";
 import { DesktopFaceClusterGrid } from "./DesktopFaceClusterGrid";
 import { DesktopPeopleGroupsTab } from "./DesktopPeopleGroupsTab";
+import { GuidedSlideModal } from "./guided-content/guided-slide-modal";
+import { AiModelsReferenceSheet } from "./onboarding/ai-models-reference-sheet";
+import {
+  buildPeopleModuleHelpDeck,
+  getPeopleModuleHelpInitialSlideIndex,
+  type PeopleModuleTab,
+} from "./onboarding/people-module-help";
+import {
+  handleGuidedSlideDeckAction,
+  openOllamaInstallDocInBrowser,
+} from "./onboarding/guided-slide-catalog";
 
-type PeopleTab = "people" | "tagged" | "untagged" | "groups";
+type PeopleTab = PeopleModuleTab;
 
 const TAB_LABELS: Record<PeopleTab, string> = {
   people: "People",
@@ -21,13 +32,35 @@ export function DesktopPeopleSection({
   onOpenFacePhoto: PeopleWorkspaceOpenFacePhotoFn;
 }): ReactElement {
   const [activeTab, setActiveTab] = useState<PeopleTab>("people");
+  const [peopleHelpOpen, setPeopleHelpOpen] = useState(false);
+  const [peopleHelpInitialIndex, setPeopleHelpInitialIndex] = useState(0);
+  const [modelsReferenceOpen, setModelsReferenceOpen] = useState(false);
 
-  useEffect(() => {
-    untaggedTabLog("People section activeTab changed", { tab: activeTab });
-    if (activeTab === "untagged") {
-      untaggedTabLog("Untagged faces tab is active — DesktopFaceClusterGrid mounting");
+  const peopleHelpDeck = useMemo(() => buildPeopleModuleHelpDeck(), []);
+  const visiblePeopleHelpSlideIds = useMemo(
+    () => peopleHelpDeck.slides.map((s): string => s.id),
+    [peopleHelpDeck.slides],
+  );
+
+  const openPeopleModuleHelp = useCallback(
+    (tab: PeopleModuleTab) => {
+      setPeopleHelpInitialIndex(
+        getPeopleModuleHelpInitialSlideIndex(tab, visiblePeopleHelpSlideIds),
+      );
+      setPeopleHelpOpen(true);
+    },
+    [visiblePeopleHelpSlideIds],
+  );
+
+  const onPeopleSlideAction = useCallback((actionId: string): void => {
+    const next = handleGuidedSlideDeckAction(actionId);
+    if (next === "models") {
+      setModelsReferenceOpen(true);
     }
-  }, [activeTab]);
+    if (next === "ollama-doc") {
+      openOllamaInstallDocInBrowser();
+    }
+  }, []);
 
   return (
     <div className="flex h-full flex-col">
@@ -57,15 +90,37 @@ export function DesktopPeopleSection({
       </div>
       <div className="flex-1 overflow-y-auto">
         {activeTab === "people" ? (
-          <DesktopPeopleTagsListTab />
+          <DesktopPeopleTagsListTab onOpenPeopleModuleHelp={() => openPeopleModuleHelp("people")} />
         ) : activeTab === "tagged" ? (
-          <DesktopPeopleWorkspace onOpenFacePhoto={onOpenFacePhoto} />
+          <DesktopPeopleWorkspace
+            onOpenFacePhoto={onOpenFacePhoto}
+            onOpenPeopleModuleHelp={() => openPeopleModuleHelp("tagged")}
+          />
         ) : activeTab === "untagged" ? (
-          <DesktopFaceClusterGrid onOpenFacePhoto={onOpenFacePhoto} />
+          <DesktopFaceClusterGrid
+            onOpenFacePhoto={onOpenFacePhoto}
+            onOpenPeopleModuleHelp={() => openPeopleModuleHelp("untagged")}
+          />
         ) : (
-          <DesktopPeopleGroupsTab />
+          <DesktopPeopleGroupsTab
+            onOpenPeopleModuleHelp={() => openPeopleModuleHelp("groups")}
+          />
         )}
       </div>
+
+      <GuidedSlideModal
+        open={peopleHelpOpen}
+        onClose={() => {
+          setPeopleHelpOpen(false);
+        }}
+        flowTitle={peopleHelpDeck.flowTitle}
+        slides={peopleHelpDeck.slides}
+        initialSlideIndex={peopleHelpInitialIndex}
+        slideHeadlineAsPrimaryExceptFirst
+        firstSlideUseSlideHeadlineAsSolePrimary
+        onSlideAction={onPeopleSlideAction}
+      />
+      <AiModelsReferenceSheet open={modelsReferenceOpen} onClose={() => setModelsReferenceOpen(false)} />
     </div>
   );
 }

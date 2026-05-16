@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactElement } from "react";
+import { albumFilterActiveChipClasses } from "../lib/album-filter-active-styles";
+import { cn } from "../lib/cn";
 import { PeopleTagsNameSearchRow } from "./people-tags-name-search-header";
 import {
   getSemanticSearchVisiblePersonTagIds,
@@ -101,7 +103,7 @@ export function SemanticSearchPersonTagsBar({
         {UI_TEXT.heading}
       </h3>
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2 [&_input]:border-ai-search-border [&_input]:bg-ai-search-control [&_input]:text-ai-search-text [&_input]:placeholder:text-ai-search-muted/75 [&_input]:focus:border-ai-search-accent [&_input]:focus:ring-ai-search-accent/45">
+        <div className="flex flex-wrap items-center gap-2">
           {toolbar}
           {visibleTags.map((tag) => {
             const isSelected = selectedTagIds.includes(tag.id);
@@ -110,11 +112,12 @@ export function SemanticSearchPersonTagsBar({
                 key={tag.id}
                 type="button"
                 onClick={() => handleChipClick(tag.id)}
-                className={`inline-flex h-8 shrink-0 items-center rounded-md border px-3 text-sm transition ${
+                className={cn(
+                  "inline-flex h-8 shrink-0 items-center rounded-md border px-3 text-sm transition",
                   isSelected
-                    ? "border-ai-search-accent bg-ai-search-accent/15 text-ai-search-text"
-                    : "border-ai-search-border bg-ai-search-control/60 text-ai-search-text/85 hover:border-ai-search-accent/60"
-                }`}
+                    ? albumFilterActiveChipClasses
+                    : "border-ai-search-border bg-ai-search-control/60 text-ai-search-text/85 hover:border-ai-search-accent/60",
+                )}
               >
                 {tag.label}
               </button>
