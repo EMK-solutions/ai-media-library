@@ -188,5 +188,5 @@ Linux and macOS package targets are planned but are not yet configured in this r
 - Desktop E2E (Playwright; builds app first): `pnpm test:e2e`
 - Full test run: `pnpm test:all`
 
-Desktop E2E fixtures are now tracked in-repo under `apps/desktop-media/test-assets-local/`.
+Desktop E2E fixtures are now tracked in-repo under `apps/desktop-media/test-assets/`.
 See [docs/desktop-e2e-local-assets.md](docs/desktop-e2e-local-assets.md) for fixture notes and troubleshooting.
