@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "source-map": "^0.7.6",
-    "turbo": "^2.8.14",
+    "turbo": "^2.9.18",
     "typescript": "^5"
   },
   "pnpm": {
