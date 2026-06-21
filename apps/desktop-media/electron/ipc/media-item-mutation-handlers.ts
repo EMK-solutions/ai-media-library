@@ -65,7 +65,7 @@ export function registerMediaItemMutationHandlers(): void {
       }
 
       const libraryId = DEFAULT_LIBRARY_ID;
-      const updated = updateMediaItemStarRatingInDb({
+      const updated = await updateMediaItemStarRatingInDb({
         sourcePath,
         starRating,
         libraryId,

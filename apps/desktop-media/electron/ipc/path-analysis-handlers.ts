@@ -3,6 +3,7 @@ import path from "node:path";
 import { app, ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../src/shared/ipc";
 import { getDesktopDatabase } from "../db/client";
+import { lookupActiveMediaItemForPathAnalysis } from "../db/media-item-path-lookup";
 import { DEFAULT_LIBRARY_ID } from "../db/folder-analysis-status";
 import { getFolderGeoCoverage } from "../db/folder-geo-coverage";
 import {
@@ -140,64 +141,10 @@ export function mergeResultWithFolderContext(
   };
 }
 
-type MediaItemRowLite = {
-  id: string;
-  photo_taken_at: string | null;
-  photo_taken_precision: string | null;
-  file_created_at: string | null;
-  ai_metadata: string | null;
-};
-
 type FolderLlmContext = {
   date: PathDateExtraction | null;
   location: PathLocationExtraction | null;
 };
-
-function lookupMediaItemForPath(
-  db: ReturnType<typeof getDesktopDatabase>,
-  libraryId: string,
-  filePath: string,
-): MediaItemRowLite | undefined {
-  const normalized = path.normalize(filePath);
-  const baseSql =
-    `SELECT id, photo_taken_at, photo_taken_precision, file_created_at, ai_metadata
-     FROM media_items
-     WHERE library_id = ? AND deleted_at IS NULL AND`;
-
-  const asRow = (row: unknown): MediaItemRowLite | undefined =>
-    row as MediaItemRowLite | undefined;
-
-  let row = asRow(
-    db.prepare(`${baseSql} source_path = ? LIMIT 1`).get(libraryId, normalized),
-  );
-  if (row) {
-    return row;
-  }
-
-  const slashVariant = normalized.includes("\\")
-    ? normalized.replace(/\\/g, "/")
-    : normalized.replace(/\//g, "\\");
-  if (slashVariant !== normalized) {
-    row = asRow(
-      db.prepare(`${baseSql} source_path = ? LIMIT 1`).get(libraryId, slashVariant),
-    );
-  }
-  if (row) {
-    return row;
-  }
-
-  if (process.platform === "win32") {
-    row = asRow(
-      db
-        .prepare(
-          `${baseSql} lower(source_path) = lower(?) LIMIT 1`,
-        )
-        .get(libraryId, normalized),
-    );
-  }
-
-  return row;
-}
 
 export function registerPathAnalysisHandlers(): void {
   ipcMain.handle(
@@ -564,7 +511,7 @@ export function persistLlmPathResult(filePath: string, result: LlmPathResult, mo
   const libraryId = DEFAULT_LIBRARY_ID;
   const now = new Date().toISOString();
 
-  const row = lookupMediaItemForPath(db, libraryId, filePath);
+  const row = lookupActiveMediaItemForPathAnalysis(libraryId, filePath, db);
   if (!row) {
     throw new Error(
       `no_catalog_row: no media_items row for path after ensureCatalog (path=${filePath} normalized=${path.normalize(filePath)})`,
