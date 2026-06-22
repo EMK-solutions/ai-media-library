@@ -42,7 +42,8 @@ jobs:
 
   desktop-e2e-smoke:
     name: Desktop E2E Smoke (no AI model deps)
-    runs-on: windows-latest
+    # windows-latest (2026-06) maps to win25-vs2026 and breaks node-gyp + electron postinstall; pin 2025 image used by last green CI.
+    runs-on: windows-2025
     timeout-minutes: 45
 
     steps:
@@ -114,7 +115,7 @@ jobs:
   desktop-windows-dist:
     name: Desktop Windows distributable (NSIS)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 60
 
     steps:
