@@ -1,10 +1,16 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { test as base, type ElectronApplication, type Page, _electron as electron } from "@playwright/test";
 import { startMockOllamaServer, type MockOllamaConfig } from "./mock-ollama";
 
 const MAIN_JS = path.resolve(__dirname, "../../../dist-electron/main.js");
+const requireFromDesktopPkg = createRequire(path.join(__dirname, "../../../package.json"));
+
+function resolveElectronExecutablePath(): string {
+  return requireFromDesktopPkg("electron") as string;
+}
 
 interface AppFixtures {
   electronApp: ElectronApplication;
@@ -91,6 +97,7 @@ export const test = base.extend<AppFixtures & AppOptions>({
     }
     const ollama = await startMockOllamaServer(ollamaMock);
     const app = await electron.launch({
+      executablePath: resolveElectronExecutablePath(),
       args: [MAIN_JS],
       env: {
         ...process.env,
