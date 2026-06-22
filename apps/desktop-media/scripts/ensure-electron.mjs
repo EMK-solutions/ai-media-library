@@ -129,7 +129,9 @@ async function main() {
   console.log(`Electron ready: ${executablePath}`);
 }
 
-main().catch((error) => {
+try {
+  await main();
+} catch (error) {
   console.error(error);
   process.exit(1);
-});
+}
