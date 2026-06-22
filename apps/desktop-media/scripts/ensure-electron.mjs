@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.join(__dirname, "..");
+const electronExecutableMarkerPath = path.join(pkgRoot, "tests/e2e/.electron-executable-path");
 const requireFromPkg = createRequire(path.join(pkgRoot, "package.json"));
 
 function electronPackageRoot() {
@@ -71,6 +72,7 @@ async function main() {
     process.exit(1);
   }
 
+  await fs.promises.writeFile(electronExecutableMarkerPath, `${executablePath}\n`, "utf8");
   console.log(`Electron ready: ${executablePath}`);
 }
 

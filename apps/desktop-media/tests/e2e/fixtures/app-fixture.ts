@@ -6,10 +6,30 @@ import { test as base, type ElectronApplication, type Page, _electron as electro
 import { startMockOllamaServer, type MockOllamaConfig } from "./mock-ollama";
 
 const MAIN_JS = path.resolve(__dirname, "../../../dist-electron/main.js");
+const ELECTRON_EXECUTABLE_MARKER = path.resolve(__dirname, "../.electron-executable-path");
 const requireFromDesktopPkg = createRequire(path.join(__dirname, "../../../package.json"));
 
 function resolveElectronExecutablePath(): string {
-  return requireFromDesktopPkg("electron") as string;
+  if (fs.existsSync(ELECTRON_EXECUTABLE_MARKER)) {
+    const cachedPath = fs.readFileSync(ELECTRON_EXECUTABLE_MARKER, "utf8").trim();
+    if (cachedPath.length > 0 && fs.existsSync(cachedPath)) {
+      return cachedPath;
+    }
+  }
+
+  const electronPackageDir = path.dirname(requireFromDesktopPkg.resolve("electron/package.json"));
+  const pathFile = path.join(electronPackageDir, "path.txt");
+  if (!fs.existsSync(pathFile)) {
+    throw new Error(
+      `Electron is not installed (missing ${pathFile}). Run pnpm run ensure:electron before E2E tests.`,
+    );
+  }
+  const executableName = fs.readFileSync(pathFile, "utf8").trim();
+  const executablePath = path.join(electronPackageDir, "dist", executableName);
+  if (!fs.existsSync(executablePath)) {
+    throw new Error(`Electron executable missing at ${executablePath}. Run pnpm run ensure:electron.`);
+  }
+  return executablePath;
 }
 
 interface AppFixtures {
