@@ -16,6 +16,12 @@ function electronPackageRoot() {
   return path.dirname(requireFromPkg.resolve("electron/package.json"));
 }
 
+function resetElectronInstallArtifacts() {
+  const root = electronPackageRoot();
+  fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
+  fs.rmSync(path.join(root, "path.txt"), { force: true });
+}
+
 function runElectronInstall(force) {
   const installScript = path.join(electronPackageRoot(), "install.js");
   const env = { ...process.env };
@@ -46,6 +52,7 @@ function electronIsReady() {
 }
 
 if (!electronIsReady()) {
+  resetElectronInstallArtifacts();
   runElectronInstall(true);
 }
 
