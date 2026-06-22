@@ -80,7 +80,15 @@ async function installElectronToCache() {
   fs.mkdirSync(electronCacheRoot, { recursive: true });
   console.log(`Extracting ${zipPath} to ${electronCacheRoot}...`);
   await extract(zipPath, { dir: electronCacheRoot });
-  return findElectronExecutable(electronCacheRoot);
+  try {
+    return findElectronExecutable(electronCacheRoot);
+  } catch (error) {
+    const listing = fs.existsSync(electronCacheRoot)
+      ? fs.readdirSync(electronCacheRoot, { recursive: true }).map(String)
+      : [];
+    console.error(`Electron cache listing: ${listing.join(", ") || "(empty)"}`);
+    throw error;
+  }
 }
 
 function writeMarker(executablePath) {

@@ -64,6 +64,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Exclude workspace from Windows Defender
+        shell: pwsh
+        run: |
+          $workspace = "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath $workspace
+          Add-MpPreference -ExclusionProcess "electron.exe"
+
       - name: Rebuild native modules
         run: pnpm --filter @emk/desktop-media run rebuild:native
 
@@ -77,6 +84,7 @@ jobs:
           FORCE_ELECTRON_INSTALL: "1"
         run: |
           node scripts/ensure-electron.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $marker = "tests/e2e/.electron-executable-path"
           if (-not (Test-Path $marker)) { throw "Electron marker missing at $marker" }
           $exe = (Get-Content $marker).Trim()
@@ -149,6 +157,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Exclude workspace from Windows Defender
+        shell: pwsh
+        run: |
+          $workspace = "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath $workspace
+          Add-MpPreference -ExclusionProcess "electron.exe"
 
       - name: Build Windows distributable
         run: pnpm --filter @emk/desktop-media run dist:win
