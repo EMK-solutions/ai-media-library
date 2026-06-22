@@ -1,6 +1,5 @@
 /**
- * Verify the Electron binary exists for Playwright E2E (pnpm + CI runners).
- * Downloads and extracts Electron when path.txt or the platform binary is missing.
+ * Install Electron to a stable cache dir for Playwright E2E (avoids broken node_modules/electron on CI).
  */
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -9,39 +8,34 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.join(__dirname, "..");
+const electronCacheRoot = path.join(pkgRoot, ".cache", "electron-dist");
 const electronExecutableMarkerPath = path.join(pkgRoot, "tests/e2e/.electron-executable-path");
 const requireFromPkg = createRequire(path.join(pkgRoot, "package.json"));
-
-function electronPackageRoot() {
-  return path.dirname(requireFromPkg.resolve("electron/package.json"));
-}
 
 function platformExecutableName() {
   return process.platform === "win32" ? "electron.exe" : "electron";
 }
 
-function resolveElectronExecutable() {
-  return requireFromPkg("electron");
+function cachedExecutablePath() {
+  return path.join(electronCacheRoot, platformExecutableName());
 }
 
-function electronIsReady() {
-  try {
-    const executablePath = resolveElectronExecutable();
-    return fs.existsSync(executablePath);
-  } catch {
-    return false;
+function readMarkerExecutablePath() {
+  if (!fs.existsSync(electronExecutableMarkerPath)) {
+    return null;
   }
+  const markerPath = fs.readFileSync(electronExecutableMarkerPath, "utf8").trim();
+  return markerPath.length > 0 ? markerPath : null;
 }
 
-function resetElectronInstallArtifacts() {
-  const root = electronPackageRoot();
-  fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
-  fs.rmSync(path.join(root, "path.txt"), { force: true });
+function electronIsReady(executablePath) {
+  return fs.existsSync(executablePath);
 }
 
-async function installElectronFromArtifact() {
-  const root = electronPackageRoot();
-  const requireFromElectronPkg = createRequire(path.join(root, "package.json"));
+async function installElectronToCache() {
+  const requireFromElectronPkg = createRequire(
+    path.join(path.dirname(requireFromPkg.resolve("electron/package.json")), "package.json"),
+  );
   const { version } = requireFromElectronPkg("electron/package.json");
   const { downloadArtifact } = requireFromElectronPkg("@electron/get");
   const extract = requireFromElectronPkg("extract-zip");
@@ -54,25 +48,30 @@ async function installElectronFromArtifact() {
     force: true,
   });
 
-  const distPath = path.join(root, "dist");
-  fs.mkdirSync(distPath, { recursive: true });
-  await extract(zipPath, { dir: distPath });
-  await fs.promises.writeFile(path.join(root, "path.txt"), platformExecutableName(), "utf8");
+  fs.rmSync(electronCacheRoot, { recursive: true, force: true });
+  fs.mkdirSync(electronCacheRoot, { recursive: true });
+  await extract(zipPath, { dir: electronCacheRoot });
+}
+
+async function writeMarker(executablePath) {
+  await fs.promises.writeFile(electronExecutableMarkerPath, `${executablePath}\n`, "utf8");
 }
 
 async function main() {
-  if (!electronIsReady()) {
-    resetElectronInstallArtifacts();
-    await installElectronFromArtifact();
+  const forceReinstall = process.env.CI === "true";
+  let executablePath = forceReinstall ? cachedExecutablePath() : (readMarkerExecutablePath() ?? cachedExecutablePath());
+
+  if (forceReinstall || !electronIsReady(executablePath)) {
+    await installElectronToCache();
+    executablePath = cachedExecutablePath();
   }
 
-  const executablePath = resolveElectronExecutable();
-  if (!fs.existsSync(executablePath)) {
+  if (!electronIsReady(executablePath)) {
     console.error(`Electron executable missing after install: ${executablePath}`);
     process.exit(1);
   }
 
-  await fs.promises.writeFile(electronExecutableMarkerPath, `${executablePath}\n`, "utf8");
+  await writeMarker(executablePath);
   console.log(`Electron ready: ${executablePath}`);
 }
 

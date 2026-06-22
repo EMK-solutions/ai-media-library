@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { test as base, type ElectronApplication, type Page, _electron as electron } from "@playwright/test";
@@ -7,29 +6,23 @@ import { startMockOllamaServer, type MockOllamaConfig } from "./mock-ollama";
 
 const MAIN_JS = path.resolve(__dirname, "../../../dist-electron/main.js");
 const ELECTRON_EXECUTABLE_MARKER = path.resolve(__dirname, "../.electron-executable-path");
-const requireFromDesktopPkg = createRequire(path.join(__dirname, "../../../package.json"));
 
 function resolveElectronExecutablePath(): string {
   if (fs.existsSync(ELECTRON_EXECUTABLE_MARKER)) {
     const cachedPath = fs.readFileSync(ELECTRON_EXECUTABLE_MARKER, "utf8").trim();
-    if (cachedPath.length > 0 && fs.existsSync(cachedPath)) {
-      return cachedPath;
+    if (cachedPath.length > 0) {
+      if (fs.existsSync(cachedPath)) {
+        return cachedPath;
+      }
+      throw new Error(
+        `Electron executable from ${ELECTRON_EXECUTABLE_MARKER} is missing: ${cachedPath}. Run pnpm run ensure:electron.`,
+      );
     }
   }
 
-  const electronPackageDir = path.dirname(requireFromDesktopPkg.resolve("electron/package.json"));
-  const pathFile = path.join(electronPackageDir, "path.txt");
-  if (!fs.existsSync(pathFile)) {
-    throw new Error(
-      `Electron is not installed (missing ${pathFile}). Run pnpm run ensure:electron before E2E tests.`,
-    );
-  }
-  const executableName = fs.readFileSync(pathFile, "utf8").trim();
-  const executablePath = path.join(electronPackageDir, "dist", executableName);
-  if (!fs.existsSync(executablePath)) {
-    throw new Error(`Electron executable missing at ${executablePath}. Run pnpm run ensure:electron.`);
-  }
-  return executablePath;
+  throw new Error(
+    `Electron executable marker is missing (${ELECTRON_EXECUTABLE_MARKER}). Run pnpm run ensure:electron before E2E tests.`,
+  );
 }
 
 interface AppFixtures {

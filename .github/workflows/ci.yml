@@ -64,13 +64,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Electron E2E uses _electron.launch — no Chromium browser binary required.
-      # (playwright install chromium hung ~44 min on win25-vs2026 runners during zip extraction.)
+      - name: Rebuild native modules
+        run: pnpm --filter @emk/desktop-media run rebuild:native
+
+      - name: Build desktop app
+        run: pnpm --filter @emk/desktop-media run build
+
+      - name: Install Electron for E2E
+        run: pnpm --filter @emk/desktop-media run ensure:electron
+
       - name: Run desktop E2E smoke subset
-        env:
-          # Temporary: verbose Playwright install/host-validation logs if CI still fails.
-          DEBUG: pw:install
-        run: pnpm --filter @emk/desktop-media test:e2e:ci-smoke
+        run: pnpm --filter @emk/desktop-media run test:e2e:ci-smoke
 
   desktop-linux-dist:
     name: Desktop Linux distributable (AppImage + deb)
