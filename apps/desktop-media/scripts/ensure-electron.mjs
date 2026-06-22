@@ -1,11 +1,10 @@
 /**
  * Verify the Electron binary exists for Playwright E2E (pnpm + CI runners).
- * Re-runs electron/install.js when path.txt or dist/electron.exe is missing.
+ * Downloads and extracts Electron when path.txt or the platform binary is missing.
  */
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,26 +15,8 @@ function electronPackageRoot() {
   return path.dirname(requireFromPkg.resolve("electron/package.json"));
 }
 
-function resetElectronInstallArtifacts() {
-  const root = electronPackageRoot();
-  fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
-  fs.rmSync(path.join(root, "path.txt"), { force: true });
-}
-
-function runElectronInstall(force) {
-  const installScript = path.join(electronPackageRoot(), "install.js");
-  const env = { ...process.env };
-  if (force) {
-    env.force_no_cache = "true";
-  }
-  const result = spawnSync(process.execPath, [installScript], {
-    cwd: pkgRoot,
-    stdio: "inherit",
-    env,
-  });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
+function platformExecutableName() {
+  return process.platform === "win32" ? "electron.exe" : "electron";
 }
 
 function resolveElectronExecutable() {
@@ -51,15 +32,49 @@ function electronIsReady() {
   }
 }
 
-if (!electronIsReady()) {
-  resetElectronInstallArtifacts();
-  runElectronInstall(true);
+function resetElectronInstallArtifacts() {
+  const root = electronPackageRoot();
+  fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
+  fs.rmSync(path.join(root, "path.txt"), { force: true });
 }
 
-const executablePath = resolveElectronExecutable();
-if (!fs.existsSync(executablePath)) {
-  console.error(`Electron executable missing after install: ${executablePath}`);
+async function installElectronFromArtifact() {
+  const root = electronPackageRoot();
+  const requireFromElectronPkg = createRequire(path.join(root, "package.json"));
+  const { version } = requireFromElectronPkg("electron/package.json");
+  const { downloadArtifact } = requireFromElectronPkg("@electron/get");
+  const extract = requireFromElectronPkg("extract-zip");
+
+  const zipPath = await downloadArtifact({
+    version,
+    artifactName: "electron",
+    platform: process.platform,
+    arch: process.arch,
+    force: true,
+  });
+
+  const distPath = path.join(root, "dist");
+  fs.mkdirSync(distPath, { recursive: true });
+  await extract(zipPath, { dir: distPath });
+  await fs.promises.writeFile(path.join(root, "path.txt"), platformExecutableName(), "utf8");
+}
+
+async function main() {
+  if (!electronIsReady()) {
+    resetElectronInstallArtifacts();
+    await installElectronFromArtifact();
+  }
+
+  const executablePath = resolveElectronExecutable();
+  if (!fs.existsSync(executablePath)) {
+    console.error(`Electron executable missing after install: ${executablePath}`);
+    process.exit(1);
+  }
+
+  console.log(`Electron ready: ${executablePath}`);
+}
+
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
-}
-
-console.log(`Electron ready: ${executablePath}`);
+});
