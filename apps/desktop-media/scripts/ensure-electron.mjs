@@ -1,6 +1,7 @@
 /**
  * Install Electron to a stable cache dir for Playwright E2E (avoids broken node_modules/electron on CI).
  */
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -59,13 +60,23 @@ function exportForCi(executablePath) {
   }
 }
 
+function extractZipSync(zipPath, destDir) {
+  const child = spawnSync(
+    process.execPath,
+    [path.join(__dirname, "extract-electron-zip.cjs"), zipPath, destDir],
+    { stdio: "inherit", cwd: pkgRoot },
+  );
+  if (child.status !== 0) {
+    throw new Error(`Failed to extract Electron zip (exit ${child.status ?? "unknown"})`);
+  }
+}
+
 async function installElectronToCache() {
   const requireFromElectronPkg = createRequire(
     path.join(path.dirname(requireFromPkg.resolve("electron/package.json")), "package.json"),
   );
   const { version } = requireFromElectronPkg("electron/package.json");
   const { downloadArtifact } = requireFromElectronPkg("@electron/get");
-  const extract = requireFromElectronPkg("extract-zip");
 
   console.log(`Downloading Electron ${version} for ${process.platform}-${process.arch}...`);
   const zipPath = await downloadArtifact({
@@ -79,7 +90,8 @@ async function installElectronToCache() {
   fs.rmSync(electronCacheRoot, { recursive: true, force: true });
   fs.mkdirSync(electronCacheRoot, { recursive: true });
   console.log(`Extracting ${zipPath} to ${electronCacheRoot}...`);
-  await extract(zipPath, { dir: electronCacheRoot });
+  extractZipSync(zipPath, electronCacheRoot);
+
   try {
     return findElectronExecutable(electronCacheRoot);
   } catch (error) {
@@ -129,9 +141,7 @@ async function main() {
   console.log(`Electron ready: ${executablePath}`);
 }
 
-try {
-  await main();
-} catch (error) {
+main().catch((error) => {
   console.error(error);
   process.exit(1);
-}
+});
