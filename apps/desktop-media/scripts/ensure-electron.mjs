@@ -17,23 +17,28 @@ function platformExecutableName() {
 }
 
 function findElectronExecutable(searchRoot) {
-  const expected = path.join(searchRoot, platformExecutableName());
-  if (fs.existsSync(expected)) {
-    return expected;
+  function walk(dir) {
+    const direct = path.join(dir, platformExecutableName());
+    if (fs.existsSync(direct)) {
+      return direct;
+    }
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const nested = walk(path.join(dir, entry.name));
+      if (nested) {
+        return nested;
+      }
+    }
+    return null;
   }
 
-  const entries = fs.readdirSync(searchRoot, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    const nested = path.join(searchRoot, entry.name, platformExecutableName());
-    if (fs.existsSync(nested)) {
-      return nested;
-    }
+  const found = walk(searchRoot);
+  if (!found) {
+    throw new Error(`Could not find ${platformExecutableName()} under ${searchRoot}`);
   }
-
-  throw new Error(`Could not find ${platformExecutableName()} under ${searchRoot}`);
+  return found;
 }
 
 function readMarkerExecutablePath() {
@@ -45,7 +50,7 @@ function readMarkerExecutablePath() {
 }
 
 function electronIsReady(executablePath) {
-  return fs.existsSync(executablePath);
+  return Boolean(executablePath) && fs.existsSync(executablePath);
 }
 
 function exportForCi(executablePath) {
@@ -62,6 +67,7 @@ async function installElectronToCache() {
   const { downloadArtifact } = requireFromElectronPkg("@electron/get");
   const extract = requireFromElectronPkg("extract-zip");
 
+  console.log(`Downloading Electron ${version} for ${process.platform}-${process.arch}...`);
   const zipPath = await downloadArtifact({
     version,
     artifactName: "electron",
@@ -72,6 +78,7 @@ async function installElectronToCache() {
 
   fs.rmSync(electronCacheRoot, { recursive: true, force: true });
   fs.mkdirSync(electronCacheRoot, { recursive: true });
+  console.log(`Extracting ${zipPath} to ${electronCacheRoot}...`);
   await extract(zipPath, { dir: electronCacheRoot });
   return findElectronExecutable(electronCacheRoot);
 }
@@ -83,20 +90,29 @@ function writeMarker(executablePath) {
 
 async function main() {
   const forceReinstall =
-    process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true" || process.env.FORCE_ELECTRON_INSTALL === "1";
+    process.env.FORCE_ELECTRON_INSTALL === "1" ||
+    process.env.CI === "true" ||
+    process.env.GITHUB_ACTIONS === "true";
 
-  let executablePath =
-    readMarkerExecutablePath() ??
-    (electronIsReady(path.join(electronCacheRoot, platformExecutableName()))
-      ? path.join(electronCacheRoot, platformExecutableName())
-      : null);
+  console.log(
+    `ensure-electron: forceReinstall=${forceReinstall} CI=${process.env.CI ?? ""} GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS ?? ""}`,
+  );
 
-  if (forceReinstall || !executablePath || !electronIsReady(executablePath)) {
+  let executablePath = forceReinstall ? null : readMarkerExecutablePath();
+  if (!electronIsReady(executablePath)) {
+    try {
+      executablePath = findElectronExecutable(electronCacheRoot);
+    } catch {
+      executablePath = null;
+    }
+  }
+
+  if (forceReinstall || !electronIsReady(executablePath)) {
     executablePath = await installElectronToCache();
   }
 
   if (!electronIsReady(executablePath)) {
-    console.error(`Electron executable missing after install: ${executablePath}`);
+    console.error(`Electron executable missing after install: ${executablePath ?? "(unset)"}`);
     process.exit(1);
   }
 

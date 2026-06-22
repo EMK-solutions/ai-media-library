@@ -6,11 +6,33 @@ import { startMockOllamaServer, type MockOllamaConfig } from "./mock-ollama";
 
 const MAIN_JS = path.resolve(__dirname, "../../../dist-electron/main.js");
 const ELECTRON_EXECUTABLE_MARKER = path.resolve(__dirname, "../.electron-executable-path");
-const DEFAULT_ELECTRON_EXECUTABLE = path.resolve(
-  __dirname,
-  "../../.cache/electron-dist",
-  process.platform === "win32" ? "electron.exe" : "electron",
-);
+const DEFAULT_ELECTRON_CACHE_ROOT = path.resolve(__dirname, "../../.cache/electron-dist");
+
+function findElectronInCache(): string | null {
+  const executableName = process.platform === "win32" ? "electron.exe" : "electron";
+  if (!fs.existsSync(DEFAULT_ELECTRON_CACHE_ROOT)) {
+    return null;
+  }
+
+  function walk(dir: string): string | null {
+    const direct = path.join(dir, executableName);
+    if (fs.existsSync(direct)) {
+      return direct;
+    }
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const nested = walk(path.join(dir, entry.name));
+      if (nested) {
+        return nested;
+      }
+    }
+    return null;
+  }
+
+  return walk(DEFAULT_ELECTRON_CACHE_ROOT);
+}
 
 function resolveElectronExecutablePath(): string {
   const envPath = process.env.EMK_E2E_ELECTRON_EXECUTABLE?.trim();
@@ -30,12 +52,13 @@ function resolveElectronExecutablePath(): string {
     }
   }
 
-  if (fs.existsSync(DEFAULT_ELECTRON_EXECUTABLE)) {
-    return DEFAULT_ELECTRON_EXECUTABLE;
+  const cachedExecutable = findElectronInCache();
+  if (cachedExecutable) {
+    return cachedExecutable;
   }
 
   throw new Error(
-    `Electron is not installed. Run pnpm run ensure:electron before E2E tests (checked marker ${ELECTRON_EXECUTABLE_MARKER} and ${DEFAULT_ELECTRON_EXECUTABLE}).`,
+    `Electron is not installed. Run pnpm run ensure:electron before E2E tests (checked marker ${ELECTRON_EXECUTABLE_MARKER} and ${DEFAULT_ELECTRON_CACHE_ROOT}).`,
   );
 }
 
