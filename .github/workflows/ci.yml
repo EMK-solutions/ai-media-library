@@ -73,6 +73,14 @@ jobs:
       - name: Install Electron for E2E
         run: pnpm --filter @emk/desktop-media run ensure:electron
 
+      - name: Verify Electron install
+        shell: pwsh
+        run: |
+          $marker = "apps/desktop-media/tests/e2e/.electron-executable-path"
+          $cacheExe = "apps/desktop-media/.cache/electron-dist/electron.exe"
+          if (Test-Path $marker) { Get-Content $marker }
+          if (-not (Test-Path $cacheExe)) { throw "Electron executable missing at $cacheExe" }
+
       - name: Run desktop E2E smoke subset
         run: pnpm --filter @emk/desktop-media run test:e2e:ci-smoke
 

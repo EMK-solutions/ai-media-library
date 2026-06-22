@@ -16,8 +16,24 @@ function platformExecutableName() {
   return process.platform === "win32" ? "electron.exe" : "electron";
 }
 
-function cachedExecutablePath() {
-  return path.join(electronCacheRoot, platformExecutableName());
+function findElectronExecutable(searchRoot) {
+  const expected = path.join(searchRoot, platformExecutableName());
+  if (fs.existsSync(expected)) {
+    return expected;
+  }
+
+  const entries = fs.readdirSync(searchRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const nested = path.join(searchRoot, entry.name, platformExecutableName());
+    if (fs.existsSync(nested)) {
+      return nested;
+    }
+  }
+
+  throw new Error(`Could not find ${platformExecutableName()} under ${searchRoot}`);
 }
 
 function readMarkerExecutablePath() {
@@ -30,6 +46,12 @@ function readMarkerExecutablePath() {
 
 function electronIsReady(executablePath) {
   return fs.existsSync(executablePath);
+}
+
+function exportForCi(executablePath) {
+  if (process.env.GITHUB_ENV) {
+    fs.appendFileSync(process.env.GITHUB_ENV, `EMK_E2E_ELECTRON_EXECUTABLE=${executablePath}\n`);
+  }
 }
 
 async function installElectronToCache() {
@@ -51,19 +73,26 @@ async function installElectronToCache() {
   fs.rmSync(electronCacheRoot, { recursive: true, force: true });
   fs.mkdirSync(electronCacheRoot, { recursive: true });
   await extract(zipPath, { dir: electronCacheRoot });
+  return findElectronExecutable(electronCacheRoot);
 }
 
-async function writeMarker(executablePath) {
-  await fs.promises.writeFile(electronExecutableMarkerPath, `${executablePath}\n`, "utf8");
+function writeMarker(executablePath) {
+  fs.mkdirSync(path.dirname(electronExecutableMarkerPath), { recursive: true });
+  fs.writeFileSync(electronExecutableMarkerPath, `${executablePath}\n`, "utf8");
 }
 
 async function main() {
-  const forceReinstall = process.env.CI === "true";
-  let executablePath = forceReinstall ? cachedExecutablePath() : (readMarkerExecutablePath() ?? cachedExecutablePath());
+  const forceReinstall =
+    process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true" || process.env.FORCE_ELECTRON_INSTALL === "1";
 
-  if (forceReinstall || !electronIsReady(executablePath)) {
-    await installElectronToCache();
-    executablePath = cachedExecutablePath();
+  let executablePath =
+    readMarkerExecutablePath() ??
+    (electronIsReady(path.join(electronCacheRoot, platformExecutableName()))
+      ? path.join(electronCacheRoot, platformExecutableName())
+      : null);
+
+  if (forceReinstall || !executablePath || !electronIsReady(executablePath)) {
+    executablePath = await installElectronToCache();
   }
 
   if (!electronIsReady(executablePath)) {
@@ -71,7 +100,8 @@ async function main() {
     process.exit(1);
   }
 
-  await writeMarker(executablePath);
+  writeMarker(executablePath);
+  exportForCi(executablePath);
   console.log(`Electron ready: ${executablePath}`);
 }
 

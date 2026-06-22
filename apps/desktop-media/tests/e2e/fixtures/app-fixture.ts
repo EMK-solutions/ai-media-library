@@ -6,8 +6,18 @@ import { startMockOllamaServer, type MockOllamaConfig } from "./mock-ollama";
 
 const MAIN_JS = path.resolve(__dirname, "../../../dist-electron/main.js");
 const ELECTRON_EXECUTABLE_MARKER = path.resolve(__dirname, "../.electron-executable-path");
+const DEFAULT_ELECTRON_EXECUTABLE = path.resolve(
+  __dirname,
+  "../../.cache/electron-dist",
+  process.platform === "win32" ? "electron.exe" : "electron",
+);
 
 function resolveElectronExecutablePath(): string {
+  const envPath = process.env.EMK_E2E_ELECTRON_EXECUTABLE?.trim();
+  if (envPath && fs.existsSync(envPath)) {
+    return envPath;
+  }
+
   if (fs.existsSync(ELECTRON_EXECUTABLE_MARKER)) {
     const cachedPath = fs.readFileSync(ELECTRON_EXECUTABLE_MARKER, "utf8").trim();
     if (cachedPath.length > 0) {
@@ -20,8 +30,12 @@ function resolveElectronExecutablePath(): string {
     }
   }
 
+  if (fs.existsSync(DEFAULT_ELECTRON_EXECUTABLE)) {
+    return DEFAULT_ELECTRON_EXECUTABLE;
+  }
+
   throw new Error(
-    `Electron executable marker is missing (${ELECTRON_EXECUTABLE_MARKER}). Run pnpm run ensure:electron before E2E tests.`,
+    `Electron is not installed. Run pnpm run ensure:electron before E2E tests (checked marker ${ELECTRON_EXECUTABLE_MARKER} and ${DEFAULT_ELECTRON_EXECUTABLE}).`,
   );
 }
 
