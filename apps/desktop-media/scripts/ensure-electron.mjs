@@ -61,11 +61,7 @@ function exportForCi(executablePath) {
 }
 
 function extractZipSync(zipPath, destDir) {
-  const child = spawnSync(
-    process.execPath,
-    [path.join(__dirname, "extract-electron-zip.cjs"), zipPath, destDir],
-    { stdio: "inherit", cwd: pkgRoot },
-  );
+  const child = spawnSync("tar", ["-xf", zipPath, "-C", destDir], { stdio: "inherit", cwd: pkgRoot });
   if (child.status !== 0) {
     throw new Error(`Failed to extract Electron zip (exit ${child.status ?? "unknown"})`);
   }
