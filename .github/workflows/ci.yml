@@ -42,7 +42,8 @@ jobs:
 
   desktop-e2e-smoke:
     name: Desktop E2E Smoke (no AI model deps)
-    runs-on: windows-latest
+    # windows-latest (2026-06) maps to win25-vs2026 and breaks node-gyp + electron postinstall; pin 2025 image used by last green CI.
+    runs-on: windows-2025
     timeout-minutes: 45
 
     steps:
@@ -63,11 +64,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright browser
-        run: pnpm --filter @emk/desktop-media exec playwright install chromium
+      - name: Exclude workspace from Windows Defender
+        shell: pwsh
+        run: |
+          $workspace = "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath $workspace
+          Add-MpPreference -ExclusionProcess "electron.exe"
+
+      - name: Rebuild native modules
+        run: pnpm --filter @emk/desktop-media run rebuild:native
+
+      - name: Build desktop app
+        run: pnpm --filter @emk/desktop-media run build
+
+      - name: Install Electron for E2E
+        shell: pwsh
+        working-directory: apps/desktop-media
+        env:
+          FORCE_ELECTRON_INSTALL: "1"
+        run: |
+          node scripts/ensure-electron.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $marker = "tests/e2e/.electron-executable-path"
+          if (-not (Test-Path $marker)) { throw "Electron marker missing at $marker" }
+          $exe = (Get-Content $marker).Trim()
+          if (-not (Test-Path $exe)) { throw "Electron executable missing at $exe" }
+          Write-Host "Verified Electron at $exe"
 
       - name: Run desktop E2E smoke subset
-        run: pnpm --filter @emk/desktop-media test:e2e:ci-smoke
+        run: pnpm --filter @emk/desktop-media run test:e2e:ci-smoke
 
   desktop-linux-dist:
     name: Desktop Linux distributable (AppImage + deb)
@@ -112,7 +137,7 @@ jobs:
   desktop-windows-dist:
     name: Desktop Windows distributable (NSIS)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 60
 
     steps:
@@ -132,6 +157,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Exclude workspace from Windows Defender
+        shell: pwsh
+        run: |
+          $workspace = "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath $workspace
+          Add-MpPreference -ExclusionProcess "electron.exe"
 
       - name: Build Windows distributable
         run: pnpm --filter @emk/desktop-media run dist:win

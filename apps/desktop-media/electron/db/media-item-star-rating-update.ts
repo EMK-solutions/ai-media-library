@@ -3,7 +3,8 @@ import { getDesktopDatabase } from "./client";
 import { DEFAULT_LIBRARY_ID } from "./folder-analysis-status";
 import { syncFtsForMediaItem } from "./keyword-search";
 import type { DesktopMediaItemMetadata } from "../../src/shared/ipc";
-import { getMediaItemMetadataByPaths } from "./media-item-metadata";
+import { getMediaItemMetadataByPaths, upsertMediaItemFromFilePath } from "./media-item-metadata";
+import { lookupActiveMediaItemBySourcePath } from "./media-item-path-lookup";
 
 function parseAiMetadataJson(raw: string | null): unknown {
   if (!raw?.trim()) {
@@ -20,11 +21,11 @@ function parseAiMetadataJson(raw: string | null): unknown {
  * Updates `media_items.star_rating`, merges `embedded.star_rating` in `ai_metadata`, refreshes FTS.
  * Does not touch files on disk.
  */
-export function updateMediaItemStarRatingInDb(params: {
+export async function updateMediaItemStarRatingInDb(params: {
   sourcePath: string;
   starRating: number;
   libraryId?: string;
-}): { ok: true; metadata: DesktopMediaItemMetadata } | { ok: false; error: string } {
+}): Promise<{ ok: true; metadata: DesktopMediaItemMetadata } | { ok: false; error: string }> {
   const libraryId = params.libraryId ?? DEFAULT_LIBRARY_ID;
   const starRating = params.starRating;
   if (!Number.isFinite(starRating) || starRating < 0 || starRating > 5 || !Number.isInteger(starRating)) {
@@ -37,16 +38,24 @@ export function updateMediaItemStarRatingInDb(params: {
   }
 
   const db = getDesktopDatabase();
-  const row = db
-    .prepare(
-      `SELECT id, ai_metadata FROM media_items WHERE library_id = ? AND source_path = ? AND deleted_at IS NULL LIMIT 1`,
-    )
-    .get(libraryId, trimmedPath) as { id: string; ai_metadata: string | null } | undefined;
+  let row = lookupActiveMediaItemBySourcePath(libraryId, trimmedPath, db);
+
+  if (!row) {
+    const upsert = await upsertMediaItemFromFilePath({ filePath: trimmedPath, libraryId });
+    if (upsert.status === "failed") {
+      return {
+        ok: false,
+        error: upsert.error ?? "Media item not found for path.",
+      };
+    }
+    row = lookupActiveMediaItemBySourcePath(libraryId, trimmedPath, db);
+  }
 
   if (!row) {
     return { ok: false, error: "Media item not found for path." };
   }
 
+  const canonicalPath = row.sourcePath;
   const priorAi = parseAiMetadataJson(row.ai_metadata);
   const merged = normalizeMetadata(
     mergeMetadataV2(priorAi, {
@@ -70,8 +79,8 @@ export function updateMediaItemStarRatingInDb(params: {
     // best-effort
   }
 
-  const byPath = getMediaItemMetadataByPaths([trimmedPath], libraryId);
-  const metadata = byPath[trimmedPath];
+  const byPath = getMediaItemMetadataByPaths([canonicalPath], libraryId);
+  const metadata = byPath[canonicalPath];
   if (!metadata) {
     return { ok: false, error: "Failed to load metadata after update." };
   }

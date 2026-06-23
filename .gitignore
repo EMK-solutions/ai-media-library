@@ -27,6 +27,8 @@ apps/desktop-media/dist/
 apps/desktop-media/dist-electron/
 apps/desktop-media/dist-renderer/
 apps/desktop-media/release/
+apps/desktop-media/.cache/
+apps/desktop-media/tests/e2e/.electron-executable-path
 
 # misc
 .DS_Store
