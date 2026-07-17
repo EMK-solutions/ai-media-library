@@ -10,6 +10,7 @@ import {
   Search,
   Shapes,
   Sparkles,
+  Tv,
   UserPlus,
   Users,
   Wand2,
@@ -37,9 +38,12 @@ export const GUIDED_SLIDE_IDS = {
   aiImageAnalysis: "ai-image-analysis",
   smartAlbumsOverview: "smart-albums-overview",
   onboardingNextSteps: "onboarding-next-steps",
+  tvBroadcastOverview: "tv-broadcast-overview",
+  tvBroadcastConnect: "tv-broadcast-connect",
+  tvBroadcastPinFirewall: "tv-broadcast-pin-firewall",
 } as const;
 
-export type GuidedSlideFlowKind = "product-welcome" | "people-faces-help";
+export type GuidedSlideFlowKind = "product-welcome" | "people-faces-help" | "tv-broadcast-help";
 
 export const PRODUCT_WELCOME_SLIDE_ORDER: readonly string[] = [
   GUIDED_SLIDE_IDS.welcomeFeatures,
@@ -371,6 +375,57 @@ export function getGuidedSlideConfig(slideId: string, _flow: GuidedSlideFlowKind
           {
             title: "Roll out AI gradually",
             body: "Run AI pipelines on a subset first—for example subfolders with roughly 100–500 images—and start with face detection. When faces appear, assign a handful of people tags and watch how the app clusters similar faces; then use those tags inside search filters together with text prompts.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.tvBroadcastOverview:
+      return {
+        id: slideId,
+        slideHeadline: "Broadcast a folder to your TV",
+        icon: Tv,
+        blocks: [
+          {
+            title: "What it does",
+            body: "Your computer hosts a private local web page for the selected folder. Open that page in the Smart TV’s web browser to view the same Photo Viewer slideshow on the big screen.",
+          },
+          {
+            title: "Same Wi‑Fi required",
+            body: "The TV and this computer must be on the same local network. The page is not published to the internet.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.tvBroadcastConnect:
+      return {
+        id: slideId,
+        slideHeadline: "Open the link on your TV",
+        icon: Tv,
+        blocks: [
+          {
+            title: "Use the URL shown in the app",
+            body: "After you start a broadcast, the dialog shows an address like http://192.168.x.x:8787/. On the TV, open the built-in web browser and type that address carefully (including the port number).",
+          },
+          {
+            title: "Port setting",
+            body: "If the link fails because the port is busy, change Broadcast port under Settings → Broadcast album to TV, then start broadcasting again.",
+          },
+        ],
+      };
+
+    case GUIDED_SLIDE_IDS.tvBroadcastPinFirewall:
+      return {
+        id: slideId,
+        slideHeadline: "PIN and firewall",
+        icon: Tv,
+        blocks: [
+          {
+            title: "Enter the 4-digit PIN",
+            body: "The TV page asks for the PIN shown in the desktop dialog. This keeps casual visitors on your Wi‑Fi from opening the album without the code.",
+          },
+          {
+            title: "Allow Windows Firewall once",
+            body: "The first time you broadcast, Windows may ask to allow inbound connections for this app. Choose Private networks so devices on your home Wi‑Fi can reach the page.",
           },
         ],
       };

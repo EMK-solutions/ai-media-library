@@ -16,6 +16,8 @@ const external = [
   "@huggingface/transformers",
   "onnxruntime-node",
   "sharp",
+  // Platform binary path must resolve from node_modules at runtime.
+  "@ffmpeg-installer/ffmpeg",
   ...builtinModules,
   ...builtinModules.map((moduleName) => `node:${moduleName}`),
 ];

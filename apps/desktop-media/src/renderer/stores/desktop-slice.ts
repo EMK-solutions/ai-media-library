@@ -5,6 +5,7 @@ import {
   DEFAULT_FACE_DETECTION_SETTINGS,
   DEFAULT_FOLDER_SCANNING_SETTINGS,
   DEFAULT_MEDIA_VIEWER_SETTINGS,
+  DEFAULT_TV_BROADCAST_SETTINGS,
   DEFAULT_PATH_EXTRACTION_SETTINGS,
   DEFAULT_PHOTO_ANALYSIS_SETTINGS,
   DEFAULT_SMART_ALBUM_SETTINGS,
@@ -16,6 +17,7 @@ import {
   type FolderNode,
   type FolderScanningSettings,
   type MediaViewerSettings,
+  type TvBroadcastSettings,
   type GeocoderInitStatus,
   type PathExtractionSettings,
   type PhotoAnalysisSettings,
@@ -72,6 +74,7 @@ export interface DesktopSlice {
   smartAlbumSettings: SmartAlbumSettings;
   aiImageSearchSettings: AiImageSearchSettings;
   mediaViewerSettings: MediaViewerSettings;
+  tvBroadcastSettings: TvBroadcastSettings;
   pathExtractionSettings: PathExtractionSettings;
   aiInferencePreferredGpuId: string | null;
   /** Per-group concurrency limits for the new pipeline scheduler. */
@@ -190,6 +193,12 @@ export interface DesktopSlice {
     value: MediaViewerSettings[K],
   ) => void;
   resetMediaViewerSettings: () => void;
+  setTvBroadcastSettings: (settings: TvBroadcastSettings) => void;
+  updateTvBroadcastSetting: <K extends keyof TvBroadcastSettings>(
+    key: K,
+    value: TvBroadcastSettings[K],
+  ) => void;
+  resetTvBroadcastSettings: () => void;
   setPathExtractionSettings: (settings: PathExtractionSettings) => void;
   updatePathExtractionSetting: <K extends keyof PathExtractionSettings>(
     key: K,
@@ -237,6 +246,7 @@ export const createDesktopSlice: StateCreator<DesktopSlice, [["zustand/immer", n
   smartAlbumSettings: { ...DEFAULT_SMART_ALBUM_SETTINGS },
   aiImageSearchSettings: { ...DEFAULT_AI_IMAGE_SEARCH_SETTINGS },
   mediaViewerSettings: { ...DEFAULT_MEDIA_VIEWER_SETTINGS },
+  tvBroadcastSettings: { ...DEFAULT_TV_BROADCAST_SETTINGS },
   pathExtractionSettings: { ...DEFAULT_PATH_EXTRACTION_SETTINGS },
   aiInferencePreferredGpuId: null,
   pipelineConcurrencySettings: {
@@ -496,6 +506,21 @@ export const createDesktopSlice: StateCreator<DesktopSlice, [["zustand/immer", n
   resetMediaViewerSettings: () =>
     set((state) => {
       state.mediaViewerSettings = { ...DEFAULT_MEDIA_VIEWER_SETTINGS };
+    }),
+
+  setTvBroadcastSettings: (settings) =>
+    set((state) => {
+      state.tvBroadcastSettings = settings;
+    }),
+
+  updateTvBroadcastSetting: (key, value) =>
+    set((state) => {
+      state.tvBroadcastSettings[key] = value;
+    }),
+
+  resetTvBroadcastSettings: () =>
+    set((state) => {
+      state.tvBroadcastSettings = { ...DEFAULT_TV_BROADCAST_SETTINGS };
     }),
 
   setPathExtractionSettings: (settings) =>

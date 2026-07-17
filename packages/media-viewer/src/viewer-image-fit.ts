@@ -16,7 +16,7 @@ const subscribeXl = (cb: () => void) => {
 const getXlSnapshot = () => window.matchMedia(XL_QUERY).matches;
 const getXlServerSnapshot = () => false;
 
-export function useResolvedThumbSize(thumbSize: ThumbSize): "normal" | "large" {
+export function useResolvedThumbSize(thumbSize: ThumbSize): "normal" | "large" | "tv" {
   const isXl = useSyncExternalStore(subscribeXl, getXlSnapshot, getXlServerSnapshot);
   if (thumbSize === "auto") return isXl ? "large" : "normal";
   return thumbSize;

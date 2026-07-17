@@ -50,6 +50,8 @@ asarUnpack:
   - "**/node_modules/exiftool-vendored.{exe,pl}/**/*"
   - "**/node_modules/better-sqlite3/**/*.node"
   - "**/node_modules/onnxruntime-node/**/*"
+  # ffmpeg binary for TV broadcast upright video proxies (Smart TVs ignore CSS video transforms).
+  - "**/node_modules/@ffmpeg-installer/**/*"
   # Sharp uses platform packages under @img. The native .node can be unpacked
   # by the generic rule above, but libvips ships as .so files that dlopen
   # cannot read from app.asar.

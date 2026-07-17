@@ -58,6 +58,8 @@ export const UI_TEXT = {
   faceCountLabel: "Faces",
   gridView: "Grid view",
   listView: "List view",
+  tvBroadcastStart: "Broadcast folder to TV",
+  tvBroadcastStop: "Stop TV broadcast",
   filterMenuOpen: "Open filters",
   filterMenuClose: "Close filters",
   filterMenuTitle: "Quick filters",

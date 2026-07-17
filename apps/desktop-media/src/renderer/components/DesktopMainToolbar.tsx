@@ -1,5 +1,5 @@
 import type { Dispatch, ReactElement, RefObject, SetStateAction } from "react";
-import { Filter, Grid3X3, List, MoreVertical, Search } from "lucide-react";
+import { Filter, Grid3X3, List, MoreVertical, Search, Tv } from "lucide-react";
 import type { ThumbnailQuickFilterState } from "@emk/media-metadata-core";
 import { DesktopActionsMenu } from "./DesktopActionsMenu";
 import { DesktopFolderAiPipelineStrip } from "./DesktopFolderAiPipelineStrip";
@@ -38,6 +38,9 @@ interface DesktopMainToolbarProps {
   setMainPaneViewMode: Dispatch<SetStateAction<MainPaneViewMode>>;
   onOpenImageEditSuggestions?: () => void;
   pipeline: DesktopPipelineHandlers;
+  tvBroadcastEnabled?: boolean;
+  tvBroadcastActive?: boolean;
+  onTvBroadcastClick?: () => void;
 }
 
 export function DesktopMainToolbar({
@@ -67,6 +70,9 @@ export function DesktopMainToolbar({
   setMainPaneViewMode,
   onOpenImageEditSuggestions,
   pipeline,
+  tvBroadcastEnabled = false,
+  tvBroadcastActive = false,
+  onTvBroadcastClick,
 }: DesktopMainToolbarProps): ReactElement {
   return (
     <header className="panel-header flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3">
@@ -141,6 +147,17 @@ export function DesktopMainToolbar({
         >
           <List size={16} aria-hidden="true" />
         </ToolbarIconButton>
+        {tvBroadcastEnabled && selectedFolder && onTvBroadcastClick ? (
+          <ToolbarIconButton
+            dataTestId="desktop-tv-broadcast-trigger"
+            title={tvBroadcastActive ? UI_TEXT.tvBroadcastStop : UI_TEXT.tvBroadcastStart}
+            ariaPressed={tvBroadcastActive}
+            isActive={tvBroadcastActive}
+            onClick={onTvBroadcastClick}
+          >
+            <Tv size={16} aria-hidden="true" />
+          </ToolbarIconButton>
+        ) : null}
         <div className="relative" ref={actionsMenuWrapRef}>
           <ToolbarIconButton
             title={UI_TEXT.albumActions}

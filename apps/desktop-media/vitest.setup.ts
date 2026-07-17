@@ -21,4 +21,18 @@ vi.mock("electron", () => ({
     on: vi.fn(),
   },
   BrowserWindow: vi.fn(),
+  nativeImage: {
+    createFromPath: () => ({
+      isEmpty: () => true,
+      getSize: () => ({ width: 0, height: 0 }),
+      resize: () => ({ toJPEG: () => Buffer.alloc(0) }),
+      rotate: () => ({
+        isEmpty: () => true,
+        getSize: () => ({ width: 0, height: 0 }),
+        resize: () => ({ toJPEG: () => Buffer.alloc(0) }),
+        toJPEG: () => Buffer.alloc(0),
+      }),
+      toJPEG: () => Buffer.alloc(0),
+    }),
+  },
 }));

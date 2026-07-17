@@ -358,6 +358,9 @@ export function useDesktopSettingsPersistence(): void {
             prev.mediaViewerSettings.skipVideosInSlideshow ||
           state.mediaViewerSettings.dateFormat !==
             prev.mediaViewerSettings.dateFormat ||
+          state.tvBroadcastSettings.enabled !== prev.tvBroadcastSettings.enabled ||
+          state.tvBroadcastSettings.port !== prev.tvBroadcastSettings.port ||
+          state.tvBroadcastSettings.requirePin !== prev.tvBroadcastSettings.requirePin ||
           state.pathExtractionSettings.extractDates !==
             prev.pathExtractionSettings.extractDates ||
           state.pathExtractionSettings.useLlm !==
@@ -385,6 +388,7 @@ export function useDesktopSettingsPersistence(): void {
             smartAlbums: state.smartAlbumSettings,
             aiImageSearch: state.aiImageSearchSettings,
             mediaViewer: state.mediaViewerSettings,
+            tvBroadcast: state.tvBroadcastSettings,
             pathExtraction: state.pathExtractionSettings,
             aiInferencePreferredGpuId: state.aiInferencePreferredGpuId,
             pipelineConcurrency: state.pipelineConcurrencySettings,

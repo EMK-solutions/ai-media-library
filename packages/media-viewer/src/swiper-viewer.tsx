@@ -160,6 +160,16 @@ interface MediaSwiperViewerProps<TItem extends MediaSwiperViewerItem> {
   autoPlayVideoOnSelection?: boolean;
   /** In slideshow mode, skip videos instead of playing them. */
   skipVideosInSlideshow?: boolean;
+  /** When false, disables touch/drag swipe on main and thumbs Swipers (TV / D-Pad). Default true. */
+  allowTouchMove?: boolean;
+  /** When true, start slideshow play mode when the viewer opens. */
+  autoStartSlideshow?: boolean;
+  /** When true, attempt Fullscreen API on open (may be ignored without a user gesture). */
+  autoEnterFullscreen?: boolean;
+  /** When false, hide the close (X) control. Default true. */
+  showCloseButton?: boolean;
+  /** When false, hide the enter/exit fullscreen control. Default true. */
+  showFullscreenButton?: boolean;
 }
 
 export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
@@ -179,6 +189,11 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
   autoPlayInitialVideo = false,
   autoPlayVideoOnSelection = false,
   skipVideosInSlideshow = false,
+  allowTouchMove = true,
+  autoStartSlideshow = false,
+  autoEnterFullscreen = false,
+  showCloseButton = true,
+  showFullscreenButton = true,
 }: MediaSwiperViewerProps<TItem>): ReactElement | null {
   const resolvedThumbSize = useResolvedThumbSize(thumbSize);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -250,8 +265,22 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
         setInternalShowInfoPanel(false);
       }
       initialVideoAutoPlayAttemptedRef.current = false;
+      return;
     }
-  }, [isOpen, isInfoControlled]);
+    if (autoStartSlideshow) {
+      setIsSlideshowPlaying(true);
+    }
+  }, [isOpen, isInfoControlled, autoStartSlideshow]);
+
+  useEffect(() => {
+    if (!isOpen || !autoEnterFullscreen || !containerRef.current) {
+      return;
+    }
+    if (document.fullscreenElement) {
+      return;
+    }
+    void containerRef.current.requestFullscreen().catch(() => undefined);
+  }, [isOpen, autoEnterFullscreen]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -451,6 +480,7 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
               spaceBetween={8}
               freeMode={true}
               mousewheel={true}
+              allowTouchMove={allowTouchMove}
               watchSlidesProgress={true}
               style={{ height: "100%" }}
             >
@@ -518,7 +548,7 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
                   >
                     {isSlideshowPlaying ? <IconPause /> : <IconPlay />}
                   </button>
-                  {!isSlideshowPlaying && (
+                  {!isSlideshowPlaying && showFullscreenButton ? (
                     <button
                       type="button"
                       style={styles.button}
@@ -537,7 +567,7 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
                     >
                       {isFullscreen ? <IconMinimize /> : <IconMaximize />}
                     </button>
-                  )}
+                  ) : null}
                 </div>
                 {!isSlideshowPlaying && (
                   <div style={{ ...styles.controls, ...styles.controlsRight }}>
@@ -552,9 +582,11 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
                         <IconInfo />
                       </button>
                     ) : null}
-                    <button type="button" style={styles.button} onClick={onClose} title="Close viewer" aria-label="Close viewer">
-                      <IconX />
-                    </button>
+                    {showCloseButton ? (
+                      <button type="button" style={styles.button} onClick={onClose} title="Close viewer" aria-label="Close viewer">
+                        <IconX />
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -591,6 +623,7 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
             thumbs={{ swiper: thumbsSwiper && !thumbsSwiper.destroyed ? thumbsSwiper : null }}
             slidesPerView={1}
             keyboard={{ enabled: true }}
+            allowTouchMove={allowTouchMove}
             observer={true}
             observeParents={true}
             initialSlide={currentIndex}

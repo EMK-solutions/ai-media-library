@@ -67,6 +67,7 @@ interface DesktopAppMainProps {
   aiImageSearchSettings: DesktopStoreState["aiImageSearchSettings"];
   hideAdvancedSettings: boolean;
   mediaViewerSettings: DesktopStoreState["mediaViewerSettings"];
+  tvBroadcastSettings: DesktopStoreState["tvBroadcastSettings"];
   pathExtractionSettings: PathExtractionSettings;
   aiInferencePreferredGpuId: string | null;
   aiInferenceGpuOptions: DesktopStoreState["aiInferenceGpuOptions"];
@@ -129,6 +130,9 @@ interface DesktopAppMainProps {
   onDuplicateFilesPageChange: Dispatch<SetStateAction<number>>;
   onCloseDuplicateFiles: () => void;
   onDuplicateFilesDeletedMediaItems: (mediaItemIds: readonly string[]) => void;
+  tvBroadcastEnabled?: boolean;
+  tvBroadcastActive?: boolean;
+  onTvBroadcastClick?: () => void;
 }
 
 export function DesktopAppMain({
@@ -161,6 +165,7 @@ export function DesktopAppMain({
   aiImageSearchSettings,
   hideAdvancedSettings,
   mediaViewerSettings,
+  tvBroadcastSettings,
   pathExtractionSettings,
   aiInferencePreferredGpuId,
   aiInferenceGpuOptions,
@@ -223,6 +228,9 @@ export function DesktopAppMain({
   onDuplicateFilesPageChange,
   onCloseDuplicateFiles,
   onDuplicateFilesDeletedMediaItems,
+  tvBroadcastEnabled = false,
+  tvBroadcastActive = false,
+  onTvBroadcastClick,
 }: DesktopAppMainProps): ReactElement {
   return (
     <main className="main-panel relative flex min-h-0 min-w-0 flex-col overflow-hidden">
@@ -323,6 +331,7 @@ export function DesktopAppMain({
             aiImageSearchSettings={aiImageSearchSettings}
             hideAdvancedSettings={hideAdvancedSettings}
             mediaViewerSettings={mediaViewerSettings}
+            tvBroadcastSettings={tvBroadcastSettings}
             onFaceDetectionSettingChange={(key, value) => store.getState().updateFaceDetectionSetting(key, value)}
             onResetFaceDetectionOnlySettings={() => store.getState().resetFaceDetectionOnlySettings()}
             onResetFaceRecognitionOnlySettings={() => store.getState().resetFaceRecognitionOnlySettings()}
@@ -353,6 +362,10 @@ export function DesktopAppMain({
               store.getState().updateMediaViewerSetting(key, value)
             }
             onResetMediaViewerSettings={() => store.getState().resetMediaViewerSettings()}
+            onTvBroadcastSettingChange={(key, value) =>
+              store.getState().updateTvBroadcastSetting(key, value)
+            }
+            onResetTvBroadcastSettings={() => store.getState().resetTvBroadcastSettings()}
             pathExtractionSettings={pathExtractionSettings}
             aiInferencePreferredGpuId={aiInferencePreferredGpuId}
             aiInferenceGpuOptions={aiInferenceGpuOptions}
@@ -394,6 +407,9 @@ export function DesktopAppMain({
               setMainPaneViewMode={setMainPaneViewMode}
               onOpenImageEditSuggestions={onOpenImageEditSuggestions}
               pipeline={pipeline}
+              tvBroadcastEnabled={tvBroadcastEnabled}
+              tvBroadcastActive={tvBroadcastActive}
+              onTvBroadcastClick={onTvBroadcastClick}
             />
           ) : null}
           <DesktopMediaWorkspace

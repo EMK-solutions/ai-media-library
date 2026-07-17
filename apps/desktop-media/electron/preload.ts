@@ -68,6 +68,21 @@ const api: DesktopApi = {
       ipcRenderer.removeListener(IPC_CHANNELS.settingsSaved, wrapped);
     };
   },
+  startTvBroadcast: (request) => ipcRenderer.invoke(IPC_CHANNELS.tvBroadcastStart, request),
+  stopTvBroadcast: () => ipcRenderer.invoke(IPC_CHANNELS.tvBroadcastStop),
+  getTvBroadcastStatus: () => ipcRenderer.invoke(IPC_CHANNELS.tvBroadcastGetStatus),
+  onTvBroadcastStatusChanged: (listener) => {
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      status: Parameters<typeof listener>[0],
+    ) => {
+      listener(status);
+    };
+    ipcRenderer.on(IPC_CHANNELS.tvBroadcastStatusChanged, wrapped);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.tvBroadcastStatusChanged, wrapped);
+    };
+  },
   getFolderAnalysisStatuses: () =>
     ipcRenderer.invoke(IPC_CHANNELS.getFolderAnalysisStatuses),
   getFolderAiSummaryOverview: (folderPath, options) =>

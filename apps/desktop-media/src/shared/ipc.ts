@@ -93,6 +93,10 @@ export const IPC_CHANNELS = {
   saveSettings: "media:save-settings",
   /** Main broadcasts persisted settings after every successful save so the renderer Zustand store stays aligned with disk. */
   settingsSaved: "media:settings-saved",
+  tvBroadcastStart: "media:tv-broadcast-start",
+  tvBroadcastStop: "media:tv-broadcast-stop",
+  tvBroadcastGetStatus: "media:tv-broadcast-get-status",
+  tvBroadcastStatusChanged: "media:tv-broadcast-status-changed",
   getAiInferenceGpuOptions: "media:get-ai-inference-gpu-options",
   getFolderAnalysisStatuses: "media:get-folder-analysis-statuses",
   analyzeFolderPhotos: "media:analyze-folder-photos",
@@ -265,6 +269,8 @@ export interface AppSettings {
   smartAlbums: SmartAlbumSettings;
   aiImageSearch: AiImageSearchSettings;
   mediaViewer: MediaViewerSettings;
+  /** Local LAN broadcast of selected folder to Smart TV browsers. */
+  tvBroadcast: TvBroadcastSettings;
   pathExtraction: PathExtractionSettings;
   aiInferencePreferredGpuId: string | null;
   /**
@@ -286,6 +292,20 @@ export interface MediaViewerSettings {
   /** Date display format used across desktop UI date labels. */
   dateFormat: DateDisplayFormat;
 }
+
+/** Settings for broadcasting a selected folder to Smart TV browsers over LAN HTTP. */
+export interface TvBroadcastSettings {
+  /** When true, show the TV toolbar action and allow starting a broadcast. */
+  enabled: boolean;
+  /** TCP port for the local broadcast HTTP server (1024–65535). */
+  port: number;
+  /** When true, the TV page requires the 4-digit PIN shown on the desktop before media is accessible. */
+  requirePin: boolean;
+}
+
+export const TV_BROADCAST_PORT_MIN = 1024;
+export const TV_BROADCAST_PORT_MAX = 65535;
+export const DEFAULT_TV_BROADCAST_PORT = 8787;
 
 export type DateDisplayFormat = "YYYY-MM-DD" | "DD.MM.YYYY" | "MM/DD/YYYY";
 
@@ -829,6 +849,12 @@ export const DEFAULT_MEDIA_VIEWER_SETTINGS: MediaViewerSettings = {
   dateFormat: "DD.MM.YYYY",
 };
 
+export const DEFAULT_TV_BROADCAST_SETTINGS: TvBroadcastSettings = {
+  enabled: true,
+  port: DEFAULT_TV_BROADCAST_PORT,
+  requirePin: true,
+};
+
 export const DEFAULT_APP_SETTINGS: Omit<AppSettings, "clientId"> = {
   libraryRoots: [],
   sidebarCollapsed: false,
@@ -840,6 +866,7 @@ export const DEFAULT_APP_SETTINGS: Omit<AppSettings, "clientId"> = {
   smartAlbums: DEFAULT_SMART_ALBUM_SETTINGS,
   aiImageSearch: DEFAULT_AI_IMAGE_SEARCH_SETTINGS,
   mediaViewer: DEFAULT_MEDIA_VIEWER_SETTINGS,
+  tvBroadcast: DEFAULT_TV_BROADCAST_SETTINGS,
   pathExtraction: DEFAULT_PATH_EXTRACTION_SETTINGS,
   aiInferencePreferredGpuId: null,
   pipelineConcurrency: DEFAULT_PIPELINE_CONCURRENCY,
@@ -2191,6 +2218,30 @@ export interface EmbeddingModelStatus {
   loaded: boolean;
 }
 
+export interface TvBroadcastStartRequest {
+  folderPath: string;
+  /** Port from settings; validated server-side. */
+  port: number;
+  /** When false, skip PIN gate on the TV client. Defaults to true. */
+  requirePin?: boolean;
+}
+
+export interface TvBroadcastStartResult {
+  ok: boolean;
+  status: TvBroadcastStatus;
+  error?: string;
+}
+
+export interface TvBroadcastStatus {
+  active: boolean;
+  folderPath: string | null;
+  url: string | null;
+  pin: string | null;
+  port: number | null;
+  lanIp: string | null;
+  requirePin: boolean | null;
+}
+
 export interface FaceEmbeddingStats {
   totalFaces: number;
   withEmbeddings: number;
@@ -2238,6 +2289,10 @@ export interface DesktopApi {
   saveSettings: (settings: AppSettings) => Promise<void>;
   /** Fired when settings were written from any source (including IPC saveSettings) so UI state matches disk. */
   onSettingsSaved: (listener: (settings: AppSettings) => void) => () => void;
+  startTvBroadcast: (request: TvBroadcastStartRequest) => Promise<TvBroadcastStartResult>;
+  stopTvBroadcast: () => Promise<TvBroadcastStatus>;
+  getTvBroadcastStatus: () => Promise<TvBroadcastStatus>;
+  onTvBroadcastStatusChanged: (listener: (status: TvBroadcastStatus) => void) => () => void;
   getFolderAnalysisStatuses: () => Promise<Record<string, FolderAnalysisStatus>>;
   getFolderAiSummaryOverview: (
     folderPath: string,

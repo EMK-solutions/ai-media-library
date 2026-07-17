@@ -3,11 +3,15 @@
  * Topic ids use `domain:feature`; add new union members when a feature ships content.
  * Global first-run welcome uses `productIntro` + `ProductWelcomeDeckVariant` slide decks.
  */
-export type GuidedHelpTopicId = "documents:invoices-receipts";
+export type GuidedHelpTopicId = "documents:invoices-receipts" | "broadcast:tv";
 
 export const GUIDED_HELP_TOPIC_DOCUMENTS_INVOICES_RECEIPTS = "documents:invoices-receipts" satisfies GuidedHelpTopicId;
+export const GUIDED_HELP_TOPIC_TV_BROADCAST = "broadcast:tv" satisfies GuidedHelpTopicId;
 
-export const GUIDED_HELP_TOPIC_IDS: readonly GuidedHelpTopicId[] = [GUIDED_HELP_TOPIC_DOCUMENTS_INVOICES_RECEIPTS];
+export const GUIDED_HELP_TOPIC_IDS: readonly GuidedHelpTopicId[] = [
+  GUIDED_HELP_TOPIC_DOCUMENTS_INVOICES_RECEIPTS,
+  GUIDED_HELP_TOPIC_TV_BROADCAST,
+];
 
 export interface GuidedHelpTopicState {
   /** True after the user closes the help wizard (auto or manual); suppresses future auto-open. */

@@ -32,6 +32,10 @@ import { registerDocumentsHandlers } from "./ipc/documents-handlers";
 import { registerPipelineOrchestrationHandlers } from "./ipc/pipeline-orchestration-handlers";
 import { registerFolderDuplicateScanHandlers } from "./ipc/folder-duplicate-scan-handlers";
 import { registerParentFolderMediaCountHandlers } from "./ipc/parent-folder-media-count-handlers";
+import {
+  registerTvBroadcastHandlers,
+  stopTvBroadcastOnQuit,
+} from "./ipc/tv-broadcast-handlers";
 import { registerAllPipelineDefinitions } from "./pipelines/definitions";
 import { setPipelineConcurrencyConfig } from "./pipelines/concurrency-config";
 import { releaseAllPowerSave } from "./ipc/power-save-manager";
@@ -91,6 +95,7 @@ function registerAllIpcHandlers(): void {
   registerFolderDuplicateScanHandlers();
   registerParentFolderMediaCountHandlers();
   registerPipelineOrchestrationHandlers();
+  registerTvBroadcastHandlers();
 
 }
 
@@ -222,6 +227,7 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => {
   releaseAllPowerSave();
+  void stopTvBroadcastOnQuit();
   void exiftool.end();
 });
 

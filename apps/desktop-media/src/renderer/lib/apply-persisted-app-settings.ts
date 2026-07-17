@@ -34,6 +34,7 @@ export function applyPersistedAppSettingsToStore(store: DesktopStore, settings: 
     s.smartAlbumSettings = settings.smartAlbums;
     s.aiImageSearchSettings = settings.aiImageSearch;
     s.mediaViewerSettings = settings.mediaViewer;
+    s.tvBroadcastSettings = settings.tvBroadcast;
     s.pathExtractionSettings = settings.pathExtraction;
     s.aiInferencePreferredGpuId = settings.aiInferencePreferredGpuId;
     s.pipelineConcurrencySettings = settings.pipelineConcurrency;

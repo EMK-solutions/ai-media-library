@@ -8,6 +8,7 @@ import {
   DEFAULT_FACE_DETECTION_SETTINGS,
   DEFAULT_FOLDER_SCANNING_SETTINGS,
   DEFAULT_MEDIA_VIEWER_SETTINGS,
+  DEFAULT_TV_BROADCAST_SETTINGS,
   DEFAULT_PATH_EXTRACTION_SETTINGS,
   DEFAULT_PHOTO_ANALYSIS_SETTINGS,
   DEFAULT_SMART_ALBUM_SETTINGS,
@@ -25,6 +26,7 @@ import {
   type FolderScanningSettings,
   type ImageOrientationModelId,
   type MediaViewerSettings,
+  type TvBroadcastSettings,
   type PathExtractionSettings,
   type PhotoAnalysisSettings,
   type PhotoPendingFolderIconTint,
@@ -96,6 +98,7 @@ async function readSettingsLocked(userDataPath: string): Promise<AppSettings> {
     smartAlbums: sanitizeSmartAlbumSettings(parsed.smartAlbums),
     aiImageSearch: sanitizeAiImageSearchSettings(parsed.aiImageSearch),
     mediaViewer: sanitizeMediaViewerSettings(parsed.mediaViewer),
+    tvBroadcast: sanitizeTvBroadcastSettings(parsed.tvBroadcast),
     pathExtraction: sanitizePathExtractionSettings(parsed.pathExtraction),
     aiInferencePreferredGpuId: sanitizeAiInferencePreferredGpuId(parsed.aiInferencePreferredGpuId),
     pipelineConcurrency: sanitizePipelineConcurrency(parsed.pipelineConcurrency),
@@ -141,6 +144,27 @@ function sanitizeMediaViewerSettings(candidate: unknown): MediaViewerSettings {
         ? value.skipVideosInSlideshow
         : DEFAULT_MEDIA_VIEWER_SETTINGS.skipVideosInSlideshow,
     dateFormat: sanitizeDateDisplayFormat(value.dateFormat),
+  };
+}
+
+function sanitizeTvBroadcastSettings(candidate: unknown): TvBroadcastSettings {
+  const value = isRecord(candidate) ? candidate : {};
+  const portRaw = typeof value.port === "number" ? value.port : Number(value.port);
+  let port = DEFAULT_TV_BROADCAST_SETTINGS.port;
+  if (Number.isFinite(portRaw)) {
+    const rounded = Math.round(portRaw);
+    if (rounded >= 1024 && rounded <= 65535) {
+      port = rounded;
+    }
+  }
+  return {
+    enabled:
+      typeof value.enabled === "boolean" ? value.enabled : DEFAULT_TV_BROADCAST_SETTINGS.enabled,
+    port,
+    requirePin:
+      typeof value.requirePin === "boolean"
+        ? value.requirePin
+        : DEFAULT_TV_BROADCAST_SETTINGS.requirePin,
   };
 }
 

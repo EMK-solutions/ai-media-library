@@ -5,11 +5,12 @@ import {
   type ThumbnailQuickFilterState,
 } from "@emk/media-metadata-core";
 import type { SmartAlbumRootKind, SmartAlbumYearAreaSubView } from "@emk/shared-contracts";
-import type { DesktopMediaItemMetadata, FolderDuplicateScanResultPayload } from "../shared/ipc";
+import type { DesktopMediaItemMetadata, FolderDuplicateScanResultPayload, TvBroadcastStatus } from "../shared/ipc";
 import type { BundleView } from "../shared/pipeline-types";
 import { supportsThinkingMode } from "../shared/photo-analysis-prompt";
 import { DesktopAppMain } from "./components/DesktopAppMain";
 import { DesktopProductWelcomeLayer } from "./components/onboarding/desktop-product-welcome-layer";
+import { TvBroadcastDialogs } from "./components/tv-broadcast/TvBroadcastDialogs";
 import type { SimilarImagesSession } from "./components/similar-images/desktop-similar-images-workspace";
 import { DesktopAppSidebar } from "./components/DesktopAppSidebar";
 import { DesktopSwiperInfoPanel } from "./components/DesktopSwiperInfoPanel";
@@ -111,6 +112,7 @@ export function App(): ReactElement {
   const smartAlbumSettings = useDesktopStore((s) => s.smartAlbumSettings);
   const aiImageSearchSettings = useDesktopStore((s) => s.aiImageSearchSettings);
   const mediaViewerSettings = useDesktopStore((s) => s.mediaViewerSettings);
+  const tvBroadcastSettings = useDesktopStore((s) => s.tvBroadcastSettings);
   const pathExtractionSettings = useDesktopStore((s) => s.pathExtractionSettings);
   const aiInferencePreferredGpuId = useDesktopStore((s) => s.aiInferencePreferredGpuId);
   const aiInferenceGpuOptions = useDesktopStore((s) => s.aiInferenceGpuOptions);
@@ -156,6 +158,17 @@ export function App(): ReactElement {
   const [similarImagesPage, setSimilarImagesPage] = useState(0);
   const [duplicateFilesSession, setDuplicateFilesSession] = useState<DuplicateFilesSession | null>(null);
   const [duplicateFilesPage, setDuplicateFilesPage] = useState(0);
+  const [tvBroadcastStatus, setTvBroadcastStatus] = useState<TvBroadcastStatus>({
+    active: false,
+    folderPath: null,
+    url: null,
+    pin: null,
+    port: null,
+    lanIp: null,
+    requirePin: null,
+  });
+  const [tvBroadcastStartOpen, setTvBroadcastStartOpen] = useState(false);
+  const [tvBroadcastStopOpen, setTvBroadcastStopOpen] = useState(false);
   const [insightsSubSection, setInsightsSubSection] = useState<InsightsSidebarSubSection | null>(null);
   const [documentsSubSection, setDocumentsSubSection] = useState<DocumentsSidebarSubSection | null>(null);
   const [insightsDuplicateFilesHubOpen, setInsightsDuplicateFilesHubOpen] = useState(false);
@@ -199,6 +212,20 @@ export function App(): ReactElement {
       }
     });
   }, [store]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.desktopApi.getTvBroadcastStatus().then((status) => {
+      if (!cancelled) setTvBroadcastStatus(status);
+    });
+    const unsubscribe = window.desktopApi.onTvBroadcastStatusChanged((status) => {
+      setTvBroadcastStatus(status);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   const {
     descEmbedBackfill,
@@ -864,6 +891,7 @@ export function App(): ReactElement {
         aiImageSearchSettings={aiImageSearchSettings}
         hideAdvancedSettings={hideAdvancedSettings}
         mediaViewerSettings={mediaViewerSettings}
+        tvBroadcastSettings={tvBroadcastSettings}
         pathExtractionSettings={pathExtractionSettings}
         aiInferencePreferredGpuId={aiInferencePreferredGpuId}
         aiInferenceGpuOptions={aiInferenceGpuOptions}
@@ -926,6 +954,27 @@ export function App(): ReactElement {
         onDuplicateFilesPageChange={setDuplicateFilesPage}
         onCloseDuplicateFiles={handleCloseDuplicateFilesWorkspace}
         onDuplicateFilesDeletedMediaItems={handleDuplicateFilesDeletedMediaItems}
+        tvBroadcastEnabled={tvBroadcastSettings.enabled}
+        tvBroadcastActive={tvBroadcastStatus.active}
+        onTvBroadcastClick={() => {
+          if (tvBroadcastStatus.active) {
+            setTvBroadcastStopOpen(true);
+            return;
+          }
+          setTvBroadcastStartOpen(true);
+        }}
+      />
+
+      <TvBroadcastDialogs
+        selectedFolder={selectedFolder}
+        port={tvBroadcastSettings.port}
+        requirePin={tvBroadcastSettings.requirePin}
+        status={tvBroadcastStatus}
+        onStatusChange={setTvBroadcastStatus}
+        startOpen={tvBroadcastStartOpen}
+        stopOpen={tvBroadcastStopOpen}
+        onCloseStart={() => setTvBroadcastStartOpen(false)}
+        onCloseStop={() => setTvBroadcastStopOpen(false)}
       />
 
       <MediaSwiperViewer

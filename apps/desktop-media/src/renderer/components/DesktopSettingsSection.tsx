@@ -14,12 +14,15 @@ import {
   DEFAULT_FACE_DETECTION_SETTINGS,
   DEFAULT_FOLDER_SCANNING_SETTINGS,
   DEFAULT_MEDIA_VIEWER_SETTINGS,
+  DEFAULT_TV_BROADCAST_SETTINGS,
   DEFAULT_PATH_EXTRACTION_SETTINGS,
   DEFAULT_PHOTO_ANALYSIS_SETTINGS,
   DEFAULT_SMART_ALBUM_SETTINGS,
   DEFAULT_WRONG_IMAGE_ROTATION_DETECTION_SETTINGS,
   SMART_ALBUM_EXCLUDABLE_IMAGE_CATEGORY_OPTIONS,
   FACE_DETECTOR_MODEL_OPTIONS,
+  TV_BROADCAST_PORT_MAX,
+  TV_BROADCAST_PORT_MIN,
   type AiImageSearchSettings,
   type AiInferenceGpuOption,
   type AuxModelId,
@@ -33,6 +36,7 @@ import {
   type ImageOrientationModelId,
   type DateDisplayFormat,
   type MediaViewerSettings,
+  type TvBroadcastSettings,
   type PathExtractionSettings,
   type PhotoAnalysisSettings,
   type PhotoPendingFolderIconTint,
@@ -65,6 +69,7 @@ interface DesktopSettingsSectionProps {
   aiImageSearchSettings: AiImageSearchSettings;
   hideAdvancedSettings: boolean;
   mediaViewerSettings: MediaViewerSettings;
+  tvBroadcastSettings: TvBroadcastSettings;
   onFaceDetectionSettingChange: <K extends keyof FaceDetectionSettings>(
     key: K,
     value: FaceDetectionSettings[K],
@@ -103,6 +108,11 @@ interface DesktopSettingsSectionProps {
     value: MediaViewerSettings[K],
   ) => void;
   onResetMediaViewerSettings: () => void;
+  onTvBroadcastSettingChange: <K extends keyof TvBroadcastSettings>(
+    key: K,
+    value: TvBroadcastSettings[K],
+  ) => void;
+  onResetTvBroadcastSettings: () => void;
   pathExtractionSettings: PathExtractionSettings;
   onPathExtractionSettingChange: <K extends keyof PathExtractionSettings>(
     key: K,
@@ -156,6 +166,16 @@ const UI_TEXT = {
   aiImageSearchTranslationModelDescription:
     "Use the exact Ollama model name from ollama list. The current built-in default is qwen2.5vl:3b.",
   mediaViewer: "Image / Video viewer",
+  tvBroadcast: "Broadcast album to TV",
+  tvBroadcastEnabledTitle: "Enable TV broadcast",
+  tvBroadcastEnabledDescription:
+    "Show a TV icon in the folder toolbar so you can cast the selected folder to a Smart TV browser on your local network.",
+  tvBroadcastRequirePinTitle: "Request 4-digit PIN code on TV",
+  tvBroadcastRequirePinDescription:
+    "When on, the TV (or phone) browser asks for the PIN shown in this app before showing photos. Turn off only on a trusted network—useful for quick testing.",
+  tvBroadcastPortTitle: "Broadcast port",
+  tvBroadcastPortDescription:
+    "TCP port used by the local web server (1024–65535). Change this if the default port is already in use.",
   aiInferenceGpu: "Graphic card usage (GPU)",
   photoAnalysisPromptTitle: "Prompt used",
   invoicePromptTitle: "Invoice extraction prompt",
@@ -270,6 +290,7 @@ export function DesktopSettingsSection({
   aiImageSearchSettings,
   hideAdvancedSettings,
   mediaViewerSettings,
+  tvBroadcastSettings,
   onFaceDetectionSettingChange,
   onResetFaceDetectionOnlySettings,
   onResetFaceRecognitionOnlySettings,
@@ -285,6 +306,8 @@ export function DesktopSettingsSection({
   onHideAdvancedSettingsChange,
   onMediaViewerSettingChange,
   onResetMediaViewerSettings,
+  onTvBroadcastSettingChange,
+  onResetTvBroadcastSettings,
   pathExtractionSettings,
   onPathExtractionSettingChange,
   aiInferencePreferredGpuId,
@@ -515,6 +538,55 @@ export function DesktopSettingsSection({
                 mediaViewerSettings.skipVideosInSlideshow ===
                   DEFAULT_MEDIA_VIEWER_SETTINGS.skipVideosInSlideshow &&
                 mediaViewerSettings.dateFormat === DEFAULT_MEDIA_VIEWER_SETTINGS.dateFormat
+              }
+            >
+              {UI_TEXT.resetToDefaults}
+            </button>
+          </div>
+        </div>
+      </SettingsSectionCard>
+
+      <SettingsSectionCard title={UI_TEXT.tvBroadcast}>
+        <div className="space-y-3">
+          <SettingsCheckboxField
+            title={UI_TEXT.tvBroadcastEnabledTitle}
+            description={UI_TEXT.tvBroadcastEnabledDescription}
+            checked={tvBroadcastSettings.enabled}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            onChange={(next) => onTvBroadcastSettingChange("enabled", next)}
+          />
+          <SettingsCheckboxField
+            title={UI_TEXT.tvBroadcastRequirePinTitle}
+            description={UI_TEXT.tvBroadcastRequirePinDescription}
+            checked={tvBroadcastSettings.requirePin}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            onChange={(next) => onTvBroadcastSettingChange("requirePin", next)}
+          />
+          <SettingsNumberField
+            title={UI_TEXT.tvBroadcastPortTitle}
+            description={UI_TEXT.tvBroadcastPortDescription}
+            value={tvBroadcastSettings.port}
+            min={TV_BROADCAST_PORT_MIN}
+            max={TV_BROADCAST_PORT_MAX}
+            step={1}
+            onChange={(nextValue) => {
+              const rounded = Math.round(nextValue);
+              const clamped = Math.min(
+                TV_BROADCAST_PORT_MAX,
+                Math.max(TV_BROADCAST_PORT_MIN, rounded),
+              );
+              onTvBroadcastSettingChange("port", clamped);
+            }}
+          />
+          <div className="pt-1">
+            <button
+              type="button"
+              className="inline-flex h-10 items-center rounded-md border border-border px-3 text-base"
+              onClick={onResetTvBroadcastSettings}
+              disabled={
+                tvBroadcastSettings.enabled === DEFAULT_TV_BROADCAST_SETTINGS.enabled &&
+                tvBroadcastSettings.requirePin === DEFAULT_TV_BROADCAST_SETTINGS.requirePin &&
+                tvBroadcastSettings.port === DEFAULT_TV_BROADCAST_SETTINGS.port
               }
             >
               {UI_TEXT.resetToDefaults}

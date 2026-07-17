@@ -1,5 +1,5 @@
 import { type ReactElement, type ReactNode } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, CircleHelp, Loader2 } from "lucide-react";
 import { cn } from "../lib/cn";
 
 export function ConfirmActionDialog({
@@ -11,6 +11,8 @@ export function ConfirmActionDialog({
   tone = "destructive",
   emphasizeCancel = tone === "destructive",
   contentTextClassName,
+  helpAriaLabel = "Help",
+  onHelp,
   children,
   onConfirm,
   onCancel,
@@ -25,6 +27,9 @@ export function ConfirmActionDialog({
   emphasizeCancel?: boolean;
   /** Optional typography for the body region below the title (defaults to small muted text). */
   contentTextClassName?: string;
+  helpAriaLabel?: string;
+  /** Optional header Help control (e.g. open a guided wizard). */
+  onHelp?: () => void;
   children: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
@@ -50,8 +55,21 @@ export function ConfirmActionDialog({
             className={`mt-1 size-6 shrink-0 ${tone === "destructive" ? "text-destructive" : "text-primary"}`}
             aria-hidden
           />
-          <div className="min-w-0">
-            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+              {onHelp ? (
+                <button
+                  type="button"
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={helpAriaLabel}
+                  title={helpAriaLabel}
+                  onClick={onHelp}
+                >
+                  <CircleHelp className="size-4" aria-hidden />
+                </button>
+              ) : null}
+            </div>
             <div
               className={cn("mt-2 text-sm leading-6 text-muted-foreground", contentTextClassName)}
             >

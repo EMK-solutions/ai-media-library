@@ -4,11 +4,13 @@ export const themeBg = "hsl(var(--background, 222 47% 11%) / 1)";
 export const DEFAULT_MAX_IMAGE_UPSCALE_FACTOR = 1.5;
 export const DEFAULT_COVER_ASPECT_MISMATCH_THRESHOLD = 0.15;
 
-export type ThumbSize = "auto" | "normal" | "large";
+export type ThumbSize = "auto" | "normal" | "large" | "tv";
 
-export const THUMB_DIMENSIONS: Record<"normal" | "large", { railWidth: number; slideHeight: number }> = {
+export const THUMB_DIMENSIONS: Record<"normal" | "large" | "tv", { railWidth: number; slideHeight: number }> = {
   normal: { railWidth: 140, slideHeight: 90 },
   large: { railWidth: 210, slideHeight: 135 },
+  /** Wider rail for 10-foot / Smart TV viewing distance. */
+  tv: { railWidth: 280, slideHeight: 160 },
 };
 
 export type FrameSize = { width: number; height: number };
