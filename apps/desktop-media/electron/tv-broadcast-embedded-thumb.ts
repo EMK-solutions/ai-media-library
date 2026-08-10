@@ -13,7 +13,10 @@ export function readEmbeddedJpegThumbnailSync(filePath: string): Buffer | null {
     const tags = ExifReader.load(header.subarray(0, bytesRead), { expanded: true });
     const image = tags.Thumbnail?.image;
     if (!image) return null;
-    const buf = Buffer.from(image);
+    // ExifReader may return ArrayBuffer/SharedArrayBuffer; Buffer.from needs ArrayLike.
+    const buf = Buffer.isBuffer(image)
+      ? image
+      : Buffer.from(new Uint8Array(image));
     return buf.length > 0 && buf[0] === 0xff && buf[1] === 0xd8 ? buf : null;
   } catch {
     return null;
