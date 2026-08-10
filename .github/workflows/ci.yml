@@ -9,6 +9,8 @@ on:
     branches:
       - dev
       - main
+    tags:
+      - "v*"
 
 jobs:
   typecheck-and-tests:
@@ -96,10 +98,12 @@ jobs:
 
   desktop-linux-dist:
     name: Desktop Linux distributable (AppImage + deb)
-    # Build installers only on main (not on dev/PR) to save CI time; remove this `if` to build on every push.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Installers only on version tags (GitHub Releases). Avoid Actions artifact storage.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -127,18 +131,32 @@ jobs:
       - name: Build Linux distributables
         run: pnpm --filter @emk/desktop-media run dist:linux
 
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+      - name: Verify Linux installer outputs
+        run: |
+          ls -la apps/desktop-media/release/artifacts
+          test -n "$(find apps/desktop-media/release/artifacts -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$(find apps/desktop-media/release/artifacts -maxdepth 1 -name '*.deb' -print -quit)"
+          test -f apps/desktop-media/release/artifacts/latest-linux.yml
+
+      - name: Upload Linux assets to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: desktop-linux-release-artifacts
-          path: apps/desktop-media/release/artifacts/**
-          if-no-files-found: error
+          # Blockmaps are optional; required files are checked above.
+          files: |
+            apps/desktop-media/release/artifacts/*.AppImage
+            apps/desktop-media/release/artifacts/*.deb
+            apps/desktop-media/release/artifacts/latest-linux.yml
+            apps/desktop-media/release/artifacts/*.blockmap
+          fail_on_unmatched_files: false
+          overwrite_files: true
 
   desktop-windows-dist:
     name: Desktop Windows distributable (NSIS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-2025
     timeout-minutes: 60
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -168,9 +186,24 @@ jobs:
       - name: Build Windows distributable
         run: pnpm --filter @emk/desktop-media run dist:win
 
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+      - name: Verify Windows installer outputs
+        shell: pwsh
+        run: |
+          Get-ChildItem apps/desktop-media/release/artifacts | Format-Table Name, Length
+          if (-not (Get-ChildItem apps/desktop-media/release/artifacts -Filter *.exe)) {
+            throw "No Windows .exe installer found in release/artifacts"
+          }
+          if (-not (Test-Path apps/desktop-media/release/artifacts/latest.yml)) {
+            throw "Missing latest.yml (required for electron-updater)"
+          }
+
+      - name: Upload Windows assets to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: desktop-windows-release-artifacts
-          path: apps/desktop-media/release/artifacts/**
-          if-no-files-found: error
+          # Blockmaps are optional; required files are checked above.
+          files: |
+            apps/desktop-media/release/artifacts/*.exe
+            apps/desktop-media/release/artifacts/latest.yml
+            apps/desktop-media/release/artifacts/*.blockmap
+          fail_on_unmatched_files: false
+          overwrite_files: true
