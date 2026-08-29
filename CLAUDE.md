@@ -199,11 +199,7 @@ packages/
   sdk-media-api/              # Sync HTTP client
 docs/                         # Project documentation
   END-USER-GUIDE/             # Non-technical user docs
-  PRODUCT-FEATURES/           # Product/UX specs by module
-    AI/                       # AI feature specs
-    media-library/            # Core library UX
-    installer/                # Installer UX
-    metadata/                 # Metadata/tagging specs
+  PRODUCT-FEATURES/           # Product/UX specs by module (see README.md)
   IMPLEMENTATION-LOG/         # Implementation records
     features/                 # Feature implementation plans
     bugs/                     # Bug fix records
@@ -221,7 +217,7 @@ Larger renderer screens are split into `apps/desktop-media/src/renderer/componen
 Product and architecture documentation lives in `docs/`. See:
 
 - **End-user docs:** `docs/END-USER-GUIDE/` — overview and install guide.
-- **Product features:** `docs/PRODUCT-FEATURES/` — UX specs organized by module, with a dedicated `AI/` subfolder for AI feature specs.
+- **Product features:** `docs/PRODUCT-FEATURES/` — product/UX specs by module; start at `docs/PRODUCT-FEATURES/README.md`.
 - **Implementation log:** `docs/IMPLEMENTATION-LOG/` — records of feature implementations, bug fixes, and refactoring.
 - **Roadmap:** `docs/ROADMAP/` — planned features and directions.
 - **Architecture:** `docs/ARCHITECTURE/` — technical architecture and system design.

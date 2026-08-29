@@ -76,7 +76,7 @@ Some E2E specs need local image fixtures not in the repository. See [docs/deskto
 
 Project documentation lives in `docs/`:
 - **`END-USER-GUIDE/`** — non-technical overview and install guide
-- **`PRODUCT-FEATURES/`** — product/UX specs organized by module (`AI/`, `media-library/`, `installer/`, `metadata/`)
+- **`PRODUCT-FEATURES/`** — product/UX specs by module; start at [`docs/PRODUCT-FEATURES/README.md`](docs/PRODUCT-FEATURES/README.md)
 - **`IMPLEMENTATION-LOG/`** — records of feature implementations (`features/`), bug fixes (`bugs/`), and refactoring (`refactoring/`)
 - **`ROADMAP/`** — planned features and future directions
 - **`ARCHITECTURE/`** — technical architecture and system design
