@@ -69,7 +69,7 @@ For full coding rules, see `CLAUDE.md` at the repo root and `AGENTS.md` files at
 
 Project documentation lives in `docs/`:
 * **`END-USER-GUIDE/`** — non-technical user docs (overview, install)
-* **`PRODUCT-FEATURES/`** — product/UX specs by module (`AI/`, `media-library/`, `installer/`, `metadata/`)
+* **`PRODUCT-FEATURES/`** — product/UX specs by module; start at `docs/PRODUCT-FEATURES/README.md`
 * **`IMPLEMENTATION-LOG/`** — feature, bug, and refactoring records
 * **`ROADMAP/`** — planned features
 * **`ARCHITECTURE/`** — technical architecture docs

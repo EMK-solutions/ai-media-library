@@ -85,7 +85,7 @@ Desktop implements the shared adapter interfaces from `@emk/shared-contracts`. W
 - Face detection: calls RetinaFace sidecar API.
 - Face embedding: CLIP embeddings via Ollama.
 - Semantic search: multimodal embeddings via Ollama (`OllamaEmbeddingAdapter`).
-- Product UX docs: `docs/PRODUCT-FEATURES/AI/`
+- Product UX docs: `docs/PRODUCT-FEATURES/` (People: `04-people-and-faces/`, Search: `05-search-and-discovery/`, AI analysis: `03-ai-image-analysis/`)
 
 ---
 

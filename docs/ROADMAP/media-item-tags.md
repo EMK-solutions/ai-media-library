@@ -65,6 +65,5 @@ When the allowed set changes:
 
 ## Related implementation docs
 
-- Quick filters (toolbar): [`AI-SEARCH-DESKTOP.md`](../PRODUCT-FEATURES/AI/AI-SEARCH-DESKTOP.md) §1.2.1  
-- Shared filter logic: `lib/media-filters/thumbnail-quick-filters.ts`  
-- File star vs AI score: [`FILE-STAR-RATING.md`](../PRODUCT-FEATURES/media-library/FILE-STAR-RATING.md)
+- Quick filters (toolbar): [`06-quick-filters.md`](../PRODUCT-FEATURES/01-library-browsing-and-media-viewer/06-quick-filters.md)
+- File star vs AI score: [`05-star-rating.md`](../PRODUCT-FEATURES/01-library-browsing-and-media-viewer/05-star-rating.md)

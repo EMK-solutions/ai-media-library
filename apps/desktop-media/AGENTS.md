@@ -46,7 +46,7 @@ src/
 - Central registration in `electron/ipc/register-all.ts`.
 - Each handler file exports a `register*Handlers(deps)` function that receives dependencies (BrowserWindow, database, etc.).
 
-**People directory — similar face counts:** Cached counts ship with `listPersonTagsWithFaceCounts` (`person_centroids.similar_untagged_face_count`). On-demand live recompute uses `startSimilarUntaggedFaceCountsJob` / `cancelSimilarUntaggedFaceCountsJob` and `similarUntaggedCountsProgress` events (`electron/ipc/face-tags-handlers.ts`). Renderer: `DesktopPeopleTagsListTab`, `bindSimilarUntaggedCountsProgress`, `DesktopProgressDock`. Product UX: `docs/PRODUCT-FEATURES/AI/PEOPLE-FACE-TAGS.md`, `docs/PRODUCT-FEATURES/media-library/BOTTOM-APP-PANEL-UX.md` §5.
+**People directory — similar face counts:** Cached counts ship with `listPersonTagsWithFaceCounts` (`person_centroids.similar_untagged_face_count`). On-demand live recompute uses `startSimilarUntaggedFaceCountsJob` / `cancelSimilarUntaggedFaceCountsJob` and `similarUntaggedCountsProgress` events (`electron/ipc/face-tags-handlers.ts`). Renderer: `DesktopPeopleTagsListTab`, `bindSimilarUntaggedCountsProgress`, `DesktopProgressDock`. Product UX: `docs/PRODUCT-FEATURES/04-people-and-faces/04-person-directory.md`, `docs/PRODUCT-FEATURES/09-background-processing/02-progress-dock.md`.
 
 ### Store Composition
 
@@ -97,7 +97,7 @@ To swap a provider (e.g., replace Ollama with a different embedding model), crea
 
 - `upsertMediaItemFromFilePath` (`electron/db/media-item-metadata.ts`) returns `needsAiPipelineFollowUp`: true for **new** catalog rows or when **`invalidateMediaItemAiAfterMetadataRefresh`** runs (content/geometry/hash-driven invalidation per `shouldInvalidateAiAfterCatalogUpdate`); false for metadata-only updates that skip invalidation.
 - `runMetadataScanJob` (`electron/ipc/metadata-scan-handlers.ts`) aggregates **`filesNeedingAiPipelineFollowUp`** and per-folder **`needsAiFollowUp`** into `MetadataScanProgressEvent` `job-completed` (`src/shared/ipc.ts`).
-- Renderer (`bindMetadataScanProgress`): **`foldersWithCatalogChanges`** (sidebar amber outline) reflects folders with catalog **created** or **updated**, including non-invalidating updates. `job-completed` still carries **`filesNeedingAiPipelineFollowUp`** for logs and future UI. Product UX: `docs/PRODUCT-FEATURES/media-library/FOLDER-ANALYTICS-MENU-UX.md` §7.2–7.4.
+- Renderer (`bindMetadataScanProgress`): **`foldersWithCatalogChanges`** (sidebar amber outline) reflects folders with catalog **created** or **updated**, including non-invalidating updates. `job-completed` still carries **`filesNeedingAiPipelineFollowUp`** for logs and future UI. Product UX: `docs/PRODUCT-FEATURES/02-catalog-and-metadata/07-ai-result-invalidation.md`, `docs/PRODUCT-FEATURES/08-insights-and-library-health/04-failed-files-and-folder-status.md`.
 
 ### AI image search (hybrid)
 
@@ -109,7 +109,7 @@ Desktop **AI image search** ranks primarily from **vision** and **description-ve
 
 Optional **keyword re-rank** after RRF (Advanced search + **Settings → Keyword match reranking** + per-modality keyword thresholds) re-orders by keyword hit count, then raw RRF score.
 
-Product UX and behavior: `docs/PRODUCT-FEATURES/AI/AI-SEARCH-DESKTOP.md`.
+Product UX and behavior: `docs/PRODUCT-FEATURES/05-search-and-discovery/README.md`.
 
 ### Sidecar Processes
 
