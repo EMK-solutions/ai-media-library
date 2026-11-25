@@ -4,6 +4,7 @@ import {
   FaceBoundingBoxOverlay,
   getFaceTagsSortedBoxesAndOrder,
   PhotoWithInfoPanel,
+  ViewerInfoPanelVideo,
   type FaceOverlayImageInfo,
 } from "@emk/media-viewer";
 import { formatDateByPreference } from "@emk/shared-contracts";
@@ -580,13 +581,7 @@ export function DesktopViewerInfoPanel({
           }}
         >
           {isVideo ? (
-            <video
-              src={item.storage_url}
-              controls
-              preload="metadata"
-              playsInline
-              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
-            />
+            <ViewerInfoPanelVideo itemId={item.id} src={item.storage_url} ariaLabel={item.title} />
           ) : (
             <img
               ref={imageRef}

@@ -5,6 +5,7 @@ export * from "./grid/media-item-list-row";
 export * from "./grid/media-item-star-rating";
 export * from "./grid/media-item-actions-menu";
 export * from "./swiper-viewer";
+export * from "./viewer-info-panel-video";
 export * from "./photo-with-info-panel";
 export * from "./face-bounding-box-overlay";
 export * from "./photo-info-tab-content";

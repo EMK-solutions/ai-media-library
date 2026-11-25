@@ -27,6 +27,94 @@ async function openViewerFromGridByTitle(mainWindow: import("@playwright/test").
   await expect(mainWindow.locator(".media-swiper-theme")).toBeVisible({ timeout: 25_000 });
 }
 
+interface ViewerVideoPlaybackSnapshot {
+  audible: number;
+  carouselPaused: boolean | null;
+  infoPaused: boolean | null;
+  infoTime: number | null;
+  carouselCount: number;
+  infoCount: number;
+}
+
+async function readViewerVideoPlayback(
+  mainWindow: import("@playwright/test").Page,
+): Promise<ViewerVideoPlaybackSnapshot | null> {
+  return mainWindow.evaluate(() => {
+    const root = document.querySelector(".media-swiper-theme");
+    if (!root) {
+      return null;
+    }
+    const videos = Array.from(root.querySelectorAll("video"));
+    const audible = videos.filter((node) => {
+      const video = node as HTMLVideoElement;
+      return !video.paused && !video.muted;
+    }).length;
+    const carousel = root.querySelector(
+      ".swiper-slide-active video[data-emk-viewer-video='carousel']",
+    ) as HTMLVideoElement | null;
+    const info = root.querySelector("video[data-emk-viewer-video='info-panel']") as HTMLVideoElement | null;
+    return {
+      audible,
+      carouselPaused: carousel ? carousel.paused : null,
+      infoPaused: info ? info.paused : null,
+      infoTime: info ? info.currentTime : null,
+      carouselCount: root.querySelectorAll("video[data-emk-viewer-video='carousel']").length,
+      infoCount: root.querySelectorAll("video[data-emk-viewer-video='info-panel']").length,
+    };
+  });
+}
+
+async function pauseActiveCarouselVideo(
+  mainWindow: import("@playwright/test").Page,
+): Promise<{ currentTime: number; paused: boolean }> {
+  return mainWindow.evaluate(async () => {
+    const video = document.querySelector(
+      ".media-swiper-theme .swiper-slide-active video[data-emk-viewer-video='carousel']",
+    ) as HTMLVideoElement | null;
+    if (!video) {
+      throw new Error("Carousel video is not mounted");
+    }
+    if (video.readyState < 1) {
+      await new Promise<void>((resolve) => {
+        video.addEventListener("loadedmetadata", () => resolve(), { once: true });
+      });
+    }
+    const target =
+      Number.isFinite(video.duration) && video.duration > 0.4 ? Math.min(1, video.duration / 2) : 0;
+    if (target > 0 && Math.abs(video.currentTime - target) > 0.05) {
+      await new Promise<void>((resolve) => {
+        video.addEventListener("seeked", () => resolve(), { once: true });
+        video.currentTime = target;
+      });
+    }
+    video.pause();
+    return { currentTime: video.currentTime, paused: video.paused };
+  });
+}
+
+async function expectAudibleVideosStayPaused(
+  mainWindow: import("@playwright/test").Page,
+  durationMs: number,
+): Promise<void> {
+  const result = await mainWindow.evaluate(async (ms) => {
+    const started = performance.now();
+    while (performance.now() - started < ms) {
+      const playing = Array.from(document.querySelectorAll(".media-swiper-theme video")).filter((node) => {
+        const video = node as HTMLVideoElement;
+        return !video.paused && !video.muted;
+      });
+      if (playing.length > 0) {
+        return "playing";
+      }
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 100);
+      });
+    }
+    return "paused";
+  }, durationMs);
+  expect(result).toBe("paused");
+}
+
 async function currentViewerVideoPaused(mainWindow: import("@playwright/test").Page): Promise<boolean | null> {
   return mainWindow.evaluate(() => {
     // `[controls]` pins to the main viewer's slide video; the thumb rail's active <video>
@@ -244,6 +332,68 @@ test.describe("Viewer mixed media", () => {
       expectedPaused: true,
       maxSteps: 1,
       timeoutPerStepMs: 25_000,
+    });
+  });
+
+  test("paused video stays paused when the info panel opens", async ({ electronApp, mainWindow }) => {
+    test.skip(!hasE2eMixedMediaAssets(), mixedAssetsMissing);
+
+    await openE2eMixedMediaLibrary(electronApp, mainWindow);
+    await switchToGridView(mainWindow);
+
+    const { videoNames } = await readMixedMediaNames(mainWindow);
+    expect(videoNames.length).toBeGreaterThan(0);
+    await openViewerFromGridByTitle(mainWindow, videoNames[0]);
+
+    await expect.poll(async () => currentViewerVideoPaused(mainWindow), { timeout: 10_000 }).toBe(false);
+
+    const pausedAt = await pauseActiveCarouselVideo(mainWindow);
+    expect(pausedAt.paused).toBe(true);
+    expect(pausedAt.currentTime).toBeGreaterThan(0.2);
+
+    await mainWindow.getByRole("button", { name: "Show info" }).click();
+    await expect(mainWindow.getByRole("button", { name: "Close info panel" })).toBeVisible();
+    await expect(mainWindow.getByText("Metadata is not available yet for this file.")).not.toBeVisible({
+      timeout: 60_000,
+    });
+
+    await expect
+      .poll(async () => {
+        const playback = await readViewerVideoPlayback(mainWindow);
+        if (!playback || playback.carouselCount < 1 || playback.infoCount !== 1) {
+          return false;
+        }
+        return (
+          playback.audible === 0 &&
+          playback.carouselPaused === true &&
+          playback.infoPaused === true &&
+          Math.abs((playback.infoTime ?? 0) - pausedAt.currentTime) < 0.75
+        );
+      }, { timeout: 10_000 })
+      .toBe(true);
+    await expectAudibleVideosStayPaused(mainWindow, 1_500);
+
+    await mainWindow.evaluate(async () => {
+      const info = document.querySelector("video[data-emk-viewer-video='info-panel']") as HTMLVideoElement | null;
+      if (!info) {
+        throw new Error("Info panel video is not mounted");
+      }
+      await info.play();
+    });
+    await expect.poll(async () => readViewerVideoPlayback(mainWindow), { timeout: 10_000 }).toMatchObject({
+      audible: 1,
+      carouselPaused: true,
+      infoPaused: false,
+    });
+
+    await mainWindow.evaluate(() => {
+      const info = document.querySelector("video[data-emk-viewer-video='info-panel']") as HTMLVideoElement | null;
+      info?.pause();
+    });
+    await expect.poll(async () => readViewerVideoPlayback(mainWindow), { timeout: 10_000 }).toMatchObject({
+      audible: 0,
+      carouselPaused: true,
+      infoPaused: true,
     });
   });
 

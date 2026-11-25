@@ -42,6 +42,8 @@ import {
   resolveMainImageFit,
   resolveEffectiveNaturalSize,
 } from "./viewer-image-fit";
+import { useViewerCarouselVideoHandoff } from "./viewer-carousel-video-session";
+import { ViewerCarouselVideoProvider } from "./viewer-info-panel-video";
 
 export type { ThumbSize } from "./viewer-styles";
 
@@ -225,6 +227,7 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
   const [frameSize, setFrameSize] = useState<FrameSize | null>(null);
   const [imageNaturalSizes, setImageNaturalSizes] = useState<Record<string, ImageNaturalSize>>({});
   const mediaVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const userPausedItemIdRef = useRef<string | null>(null);
   const initialVideoAutoPlayAttemptedRef = useRef(false);
   const slideshowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const upsertImageNaturalSize = (itemId: string, width: number, height: number) => {
@@ -324,6 +327,13 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
   const canGoPrev = resolvedItems.length > 1;
   const canGoNext = resolvedItems.length > 1;
   const showingInfo = showInfoPanel && !!renderInfoPanel && !!selectedItem;
+  const { api: carouselVideoApi, suppressCarouselRef } = useViewerCarouselVideoHandoff(
+    isOpen,
+    showingInfo,
+    currentIndex,
+    mediaVideoRefs,
+    userPausedItemIdRef,
+  );
 
   const handleNavigate = (direction: "prev" | "next") => {
     if (showingInfo) {
@@ -386,6 +396,25 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
   const hideThumbs = isSlideshowPlaying;
   const { railWidth, slideHeight } = THUMB_DIMENSIONS[resolvedThumbSize];
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" || event.defaultPrevented) {
+        return;
+      }
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    userPausedItemIdRef.current = null;
+  }, [currentIndex]);
+
   // Mark "initial autoplay handled" when opening a non-video or when autoplay is off.
   // Actual play() for the initial video runs in the slide's onLoadedMetadata — Swiper
   // mounts slides asynchronously, so the <video> ref is often still null on first effect run.
@@ -407,12 +436,15 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
     if (!selected || selected.mediaType !== "video") {
       return;
     }
+    if (suppressCarouselRef.current || userPausedItemIdRef.current === selected.id) {
+      return;
+    }
     const videoElement = mediaVideoRefs.current[selected.id];
     if (!videoElement) {
       return;
     }
     void videoElement.play().catch(() => undefined);
-  }, [autoPlayVideoOnSelection, currentIndex, isOpen, isSlideshowPlaying, resolvedItems]);
+  }, [autoPlayVideoOnSelection, currentIndex, isOpen, isSlideshowPlaying, resolvedItems, suppressCarouselRef]);
 
   useEffect(() => {
     clearSlideshowTimer();
@@ -654,10 +686,27 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
                           controls
                           preload="metadata"
                           playsInline
+                          data-emk-viewer-video="carousel"
+                          aria-hidden={showingInfo ? true : undefined}
                           ref={(element) => {
                             mediaVideoRefs.current[item.id] = element;
                           }}
+                          onPause={() => {
+                            if (suppressCarouselRef.current) {
+                              return;
+                            }
+                            userPausedItemIdRef.current = item.id;
+                          }}
+                          onPlay={(event) => {
+                            if (!suppressCarouselRef.current) {
+                              return;
+                            }
+                            event.currentTarget.pause();
+                          }}
                           onLoadedMetadata={(event) => {
+                            if (suppressCarouselRef.current || userPausedItemIdRef.current === item.id) {
+                              return;
+                            }
                             if (!autoPlayInitialVideo || initialVideoAutoPlayAttemptedRef.current) {
                               return;
                             }
@@ -755,9 +804,11 @@ export function MediaSwiperViewer<TItem extends MediaSwiperViewerItem>({
           </Swiper>
 
           {showingInfo ? (
-            <div style={styles.infoPanelContent}>
-              {renderInfoPanel(selectedItem as TItem)}
-            </div>
+            <ViewerCarouselVideoProvider api={carouselVideoApi}>
+              <div style={styles.infoPanelContent}>
+                {renderInfoPanel(selectedItem as TItem)}
+              </div>
+            </ViewerCarouselVideoProvider>
           ) : null}
         </div>
       </div>
