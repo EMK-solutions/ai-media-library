@@ -24,6 +24,11 @@ export function resolveFfmpegPath(): string | null {
     cachedFfmpegPath = fromEnv;
     return cachedFfmpegPath;
   }
+  const packaged = packagedFfmpegPath();
+  if (packaged) {
+    cachedFfmpegPath = packaged;
+    return cachedFfmpegPath;
+  }
   try {
     // Kept external in vite.main.config — resolved at runtime from node_modules.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -37,6 +42,25 @@ export function resolveFfmpegPath(): string | null {
   }
   cachedFfmpegPath = null;
   return null;
+}
+
+/**
+ * Installed builds keep ffmpeg.exe outside app.asar. `@ffmpeg-installer/ffmpeg` looks next to
+ * its own folder inside the archive, where the platform package is not present.
+ */
+function packagedFfmpegPath(): string | null {
+  const resourcesPath = process.resourcesPath;
+  if (!resourcesPath) return null;
+  const binaryName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const candidate = path.join(
+    resourcesPath,
+    "app.asar.unpacked",
+    "node_modules",
+    "@ffmpeg-installer",
+    `${process.platform}-${process.arch}`,
+    binaryName,
+  );
+  return fs.existsSync(candidate) ? candidate : null;
 }
 
 export function tvBroadcastProxyCacheDir(): string {
