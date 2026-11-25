@@ -28,6 +28,28 @@ test.describe("Viewer navigation", () => {
     await expect(viewer).not.toBeVisible({ timeout: 3_000 });
   });
 
+  test("escape closes the viewer and returns to the grid", async ({ electronApp, mainWindow }) => {
+    await openFolderAndViewer(electronApp, mainWindow);
+
+    await mainWindow.keyboard.press("Escape");
+
+    await expect(mainWindow.locator(".media-swiper-theme")).not.toBeVisible({ timeout: 3_000 });
+    await expect(mainWindow.locator("main.main-panel img[alt]").first()).toBeVisible();
+  });
+
+  test("escape closes the viewer while the info panel is open", async ({ electronApp, mainWindow }) => {
+    await openFolderAndViewer(electronApp, mainWindow);
+
+    await mainWindow.getByRole("button", { name: "Show info" }).click();
+    await expect(mainWindow.getByRole("button", { name: "Close info panel" })).toBeVisible();
+
+    await mainWindow.keyboard.press("Escape");
+
+    await expect(mainWindow.locator(".media-swiper-theme")).not.toBeVisible({ timeout: 3_000 });
+    await expect(mainWindow.getByRole("button", { name: "Close info panel" })).not.toBeVisible();
+    await expect(mainWindow.locator("main.main-panel img[alt]").first()).toBeVisible();
+  });
+
   test("viewer displays an image for the selected photo", async ({ electronApp, mainWindow }) => {
     await openFolderAndViewer(electronApp, mainWindow);
 
