@@ -3,7 +3,7 @@ id: F-04-02
 module: 04-people-and-faces
 title: Face recognition
 status: shipped
-last_reviewed: 2026-08-26
+last_reviewed: 2026-08-29
 source_of_truth:
   - apps/desktop-media/electron/db/face-embeddings.ts
   - apps/desktop-media/electron/db/person-suggestions.ts
@@ -196,11 +196,11 @@ screens.
 | BR-2 | A person's profile is the average of **all** faces currently tagged for them — there is no sample cap. | Every confirmation the user makes counts. | `apps/desktop-media/electron/db/face-embeddings.ts` |
 | BR-3 | An untagged face is a candidate for a person when its similarity to that person's profile is at least **Similarity threshold for suggesting a person** (default 0.38). | One user-facing dial for precision versus recall. | `apps/desktop-media/electron/face-recognition-threshold.ts` |
 | BR-4 | Faces already tagged for the person are excluded from that person's candidates. | Nothing already confirmed should be proposed again. | `apps/desktop-media/electron/db/face-embeddings.ts` |
-| BR-5 | For search, at most one candidate per photo per person is recorded — the best-scoring face in that photo. | Search filters on photos, not on faces. | `apps/desktop-media/electron/db/person-suggestions.ts` |
+| BR-5 | For search, at most one candidate per **media item** per person is recorded — the best-scoring face on that photo or video. Videos participate the same way as photos. | Search filters on files, not on faces. | `apps/desktop-media/electron/db/person-suggestions.ts` |
 | BR-6 | A suggestion refresh for one person evaluates at most 50,000 untagged faces. | Bounds the time a refresh can take on a very large library. | `apps/desktop-media/electron/db/person-suggestions.ts` |
 | BR-7 | Tagging or untagging a face rebuilds that person's profile immediately, and clears the photo's pending suggestion for them. | The list the user is looking at stays truthful. | `apps/desktop-media/electron/ipc/face-tags-handlers.ts` |
 | BR-8 | After a tag assignment, the full rescan of untagged faces runs only while the person has fewer than 20 tagged faces. | A full rescan per tag is expensive, and the profile barely moves once it is well established. | `apps/desktop-media/electron/person-suggestion-refresh-policy.ts` |
-| BR-9 | At the end of a face detection run that prepared at least one face, suggestions are rebuilt for every person. | New photos of known people appear without any manual action. | `apps/desktop-media/electron/face-embedding-suggestions-sync.ts` |
+| BR-9 | At the end of a face detection run that prepared at least one face, suggestions are rebuilt for every person. | New photos **and videos** of known people appear without any manual action. | `apps/desktop-media/electron/face-embedding-suggestions-sync.ts` |
 | BR-10 | Paging through a person's proposal list triggers a refresh of that person's suggestions. | Keeps a long review session from working against stale data. | `apps/desktop-media/src/renderer/components/DesktopPeopleWorkspace.tsx` |
 | BR-11 | Each person's "Similar faces" count is cached alongside their profile and updated whenever their suggestions are refreshed; the live job recomputes it only for the people visible on the current page. | A count is a full-library scan; caching keeps the list instant. | `apps/desktop-media/electron/db/face-tags.ts`, `electron/db/face-similar-counts-batch.ts` |
 | BR-12 | When a photo has a known rotation correction, its faces are compared using the corrected image. | A sideways photo would otherwise never match an upright one. | `apps/desktop-media/electron/ipc/face-detection-handlers.ts` |
@@ -223,7 +223,7 @@ in Settings → **Face recognition**, which is marked advanced and has its own r
 |---|---|---|
 | Per-face visual signature and its status | `media_face_instances` (stored as a 512-value face embedding) | Whether a face can participate in matching at all |
 | Person profile, plus the cached count of waiting similar faces | `person_centroids` | Drives proposals and the "Similar faces" column |
-| Best candidate face per photo per person | `media_item_person_suggestions` | The "include unconfirmed faces" option in search |
+| Best candidate face per media item per person | `media_item_person_suggestions` | The "include unconfirmed faces" option in search, including videos |
 | The recognition model file | The app's model folder | Downloaded once; recognition is unavailable until it is present |
 
 All of it is library data, not file data: nothing is written into the photos, and removing a

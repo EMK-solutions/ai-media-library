@@ -38,6 +38,8 @@ export function useFolderAiSummaryPipelineActions({
         } else if (pipeline === "face") {
           s.faceError = message;
           s.faceStatus = "failed";
+        } else if (pipeline === "speech") {
+          return;
         } else {
           s.aiError = message;
           s.aiStatus = "failed";
@@ -61,6 +63,9 @@ export function useFolderAiSummaryPipelineActions({
         } else if (pipeline === "face") {
           if (onRunFacePipeline) await onRunFacePipeline(folderPath, true, false);
           else await enqueueFolderAiPipeline({ folderPath, pipeline: "face", recursive: true });
+        } else if (pipeline === "speech") {
+          const speechSettings = store.getState().speechAnalysisSettings;
+          await enqueueFolderAiPipeline({ folderPath, pipeline: "speech", recursive: true, speechSettings });
         } else if (onRunPhotoPipeline) {
           await onRunPhotoPipeline(folderPath, true, false);
         } else {

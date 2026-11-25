@@ -109,6 +109,11 @@
   ],
   "not_copied_here": [
     {
+      "id": "whisper-large-v3-turbo",
+      "purpose": "Local video speech-to-text via whisper.cpp. Downloaded when Video speech to text is enabled in Settings.",
+      "note": "Not stored in this folder. whisper.cpp b5907 Windows/Linux binary, ggml-large-v3-turbo-q5_0.bin (MIT), and ggml-silero-v6.2.0.bin land under the app runtime ai-models/speech directory."
+    },
+    {
       "id": "ollama-llms",
       "purpose": "Photo analysis, captions, multimodal text embed via Ollama API.",
       "note": "Install with `ollama pull` (see repo README); weights live in Ollama's model store."

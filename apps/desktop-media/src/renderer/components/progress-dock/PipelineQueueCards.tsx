@@ -5,14 +5,17 @@ import { cn } from "../../lib/cn";
 import type { BundleView, JobView } from "../../../shared/pipeline-types";
 import { ProgressDockCloseButton } from "./ProgressDockCloseButton";
 import { ProgressCardBody } from "./cards/ProgressCardBody";
+import { useProgressEta } from "./cards/use-progress-eta";
 import { GeocoderQueueRecentCard } from "./cards/GeocoderQueueRecentCard";
 import {
   buildPipelineQueueRightText,
   buildPipelineQueueStatsText,
   bundleTerminalStatusLabel,
+  currentFileNameForJob,
   failureMessageForBundle,
 } from "../../lib/pipeline-queue-progress-stats";
 import { markDuplicateScanJobCancelRequested } from "../../lib/duplicate-files-cancelled-scan-jobs";
+import { UI_TEXT } from "../../lib/ui-text";
 
 /**
  * Renders the "central queue" view of the Background operations dock — the
@@ -113,6 +116,13 @@ interface BundleCardProps {
 function BundleCard({ bundle, variant, onDismissRecent }: BundleCardProps): ReactElement {
   const activeJob = bundle.jobs.find((j) => j.state === "running") ?? bundle.jobs[0];
   const progressJob = progressJobForBundle(bundle, variant, activeJob);
+  const etaText = useProgressEta({
+    running: variant === "running" && activeJob?.state === "running",
+    jobId: activeJob?.jobId ?? null,
+    processed: activeJob?.progress.processed ?? 0,
+    total: activeJob?.progress.total ?? 0,
+    phase: activeJob?.progress.phase ?? null,
+  });
   const isDuplicateScan = bundle.jobs.some((job) => job.pipelineId === "folder-duplicate-scan");
   const completedCount = bundle.jobs.filter(
     (j) => j.state === "succeeded" || j.state === "failed" || j.state === "skipped",
@@ -150,10 +160,25 @@ function BundleCard({ bundle, variant, onDismissRecent }: BundleCardProps): Reac
       }
       ariaLabel={`${bundle.displayName} progress`}
       statsText={statsTextForBundle(bundle, variant, progressJob)}
-      rightText={rightTextForBundle(variant, activeJob)}
+      rightText={rightTextForBundle(variant, activeJob, etaText)}
       showProgress={variant !== "queued"}
-      footer={bundle.jobs.length > 1 ? <BundleBreadcrumb jobs={bundle.jobs} /> : null}
+      footer={
+        <>
+          {variant === "running" && activeJob ? <CurrentFileLine job={activeJob} /> : null}
+          {bundle.jobs.length > 1 ? <BundleBreadcrumb jobs={bundle.jobs} /> : null}
+        </>
+      }
     />
+  );
+}
+
+function CurrentFileLine({ job }: { job: JobView }): ReactElement | null {
+  const fileName = currentFileNameForJob(job);
+  if (!fileName) return null;
+  return (
+    <div className="truncate text-xs" title={fileName} aria-label={`Current file: ${fileName}`}>
+      {`Processing: ${fileName}`}
+    </div>
   );
 }
 
@@ -223,11 +248,16 @@ function statsTextForBundle(
   return buildPipelineQueueStatsText(activeJob);
 }
 
-function rightTextForBundle(variant: BundleCardProps["variant"], activeJob: JobView | undefined): ReactElement | null {
+function rightTextForBundle(
+  variant: BundleCardProps["variant"],
+  activeJob: JobView | undefined,
+  etaText: string | null,
+): ReactElement | null {
   if (variant !== "running" || !activeJob) return null;
-  const text = buildPipelineQueueRightText(activeJob);
-  if (!text) return null;
-  return <WarmupHint text={text} />;
+  const warmup = buildPipelineQueueRightText(activeJob);
+  if (warmup) return <WarmupHint text={warmup} />;
+  if (!etaText) return null;
+  return <span>{`${UI_TEXT.analysisTimeLeftLabel}: ${etaText}`}</span>;
 }
 
 function WarmupHint({ text }: { text: string }): ReactElement {

@@ -8,6 +8,7 @@ import {
   DEFAULT_TV_BROADCAST_SETTINGS,
   DEFAULT_PATH_EXTRACTION_SETTINGS,
   DEFAULT_PHOTO_ANALYSIS_SETTINGS,
+  DEFAULT_SPEECH_ANALYSIS_SETTINGS,
   DEFAULT_SMART_ALBUM_SETTINGS,
   DEFAULT_WRONG_IMAGE_ROTATION_DETECTION_SETTINGS,
   type AiImageSearchSettings,
@@ -21,6 +22,7 @@ import {
   type GeocoderInitStatus,
   type PathExtractionSettings,
   type PhotoAnalysisSettings,
+  type SpeechAnalysisSettings,
   type SmartAlbumSettings,
   type WrongImageRotationDetectionSettings,
 } from "../../shared/ipc";
@@ -70,6 +72,7 @@ export interface DesktopSlice {
   faceDetectionSettings: FaceDetectionSettings;
   wrongImageRotationDetectionSettings: WrongImageRotationDetectionSettings;
   photoAnalysisSettings: PhotoAnalysisSettings;
+  speechAnalysisSettings: SpeechAnalysisSettings;
   folderScanningSettings: FolderScanningSettings;
   smartAlbumSettings: SmartAlbumSettings;
   aiImageSearchSettings: AiImageSearchSettings;
@@ -175,6 +178,11 @@ export interface DesktopSlice {
     value: FolderScanningSettings[K],
   ) => void;
   resetFolderScanningSettings: () => void;
+  setSpeechAnalysisSettings: (settings: SpeechAnalysisSettings) => void;
+  updateSpeechAnalysisSetting: <K extends keyof SpeechAnalysisSettings>(
+    key: K,
+    value: SpeechAnalysisSettings[K],
+  ) => void;
   setSmartAlbumSettings: (settings: SmartAlbumSettings) => void;
   updateSmartAlbumSetting: <K extends keyof SmartAlbumSettings>(
     key: K,
@@ -242,6 +250,7 @@ export const createDesktopSlice: StateCreator<DesktopSlice, [["zustand/immer", n
   faceDetectionSettings: { ...DEFAULT_FACE_DETECTION_SETTINGS },
   wrongImageRotationDetectionSettings: { ...DEFAULT_WRONG_IMAGE_ROTATION_DETECTION_SETTINGS },
   photoAnalysisSettings: { ...DEFAULT_PHOTO_ANALYSIS_SETTINGS },
+  speechAnalysisSettings: { ...DEFAULT_SPEECH_ANALYSIS_SETTINGS },
   folderScanningSettings: { ...DEFAULT_FOLDER_SCANNING_SETTINGS },
   smartAlbumSettings: { ...DEFAULT_SMART_ALBUM_SETTINGS },
   aiImageSearchSettings: { ...DEFAULT_AI_IMAGE_SEARCH_SETTINGS },
@@ -398,6 +407,10 @@ export const createDesktopSlice: StateCreator<DesktopSlice, [["zustand/immer", n
     set((state) => {
       state.faceDetectionSettings.detectorModel =
         DEFAULT_FACE_DETECTION_SETTINGS.detectorModel;
+      state.faceDetectionSettings.detectFacesInVideoFiles =
+        DEFAULT_FACE_DETECTION_SETTINGS.detectFacesInVideoFiles;
+      state.faceDetectionSettings.videoFaceSampleIntervalSec =
+        DEFAULT_FACE_DETECTION_SETTINGS.videoFaceSampleIntervalSec;
       state.faceDetectionSettings.minConfidenceThreshold =
         DEFAULT_FACE_DETECTION_SETTINGS.minConfidenceThreshold;
       state.faceDetectionSettings.minFaceBoxShortSideRatio =
@@ -461,6 +474,16 @@ export const createDesktopSlice: StateCreator<DesktopSlice, [["zustand/immer", n
   resetFolderScanningSettings: () =>
     set((state) => {
       state.folderScanningSettings = { ...DEFAULT_FOLDER_SCANNING_SETTINGS };
+    }),
+
+  setSpeechAnalysisSettings: (settings) =>
+    set((state) => {
+      state.speechAnalysisSettings = settings;
+    }),
+
+  updateSpeechAnalysisSetting: (key, value) =>
+    set((state) => {
+      state.speechAnalysisSettings[key] = value;
     }),
 
   setSmartAlbumSettings: (settings) =>

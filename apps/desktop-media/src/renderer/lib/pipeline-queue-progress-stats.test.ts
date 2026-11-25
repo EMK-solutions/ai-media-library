@@ -4,6 +4,7 @@ import {
   buildPipelineQueueRightText,
   buildPipelineQueueStatsText,
   bundleTerminalStatusLabel,
+  currentFileNameForJob,
   failureMessageForBundle,
 } from "./pipeline-queue-progress-stats";
 
@@ -72,17 +73,45 @@ describe("buildPipelineQueueStatsText", () => {
     ).toBe("Processed: 0 / 12 | Skipped: 88");
   });
 
-  it("shows face count from pipeline-specific progress details", () => {
+  it("shows image-only face progress without a raw face-instance count", () => {
     expect(
       buildPipelineQueueStatsText(
         jobView({
           pipelineId: "face-detection",
           processed: 3,
           total: 8,
-          details: { totalFacesDetected: 12 },
+          details: {
+            imageProcessed: 3,
+            imageTotal: 8,
+            videoProcessed: 0,
+            videoTotal: 0,
+            imagesWithFaces: 2,
+            videosWithFaces: 0,
+            totalFacesDetected: 12,
+          },
         }),
       ),
-    ).toBe("Processed: 3 / 8 | Faces: 12");
+    ).toBe("Processed: 3 / 8 images | Images with faces: 2");
+  });
+
+  it("shows mixed image and video face progress", () => {
+    expect(
+      buildPipelineQueueStatsText(
+        jobView({
+          pipelineId: "face-detection",
+          processed: 5,
+          total: 12,
+          details: {
+            imageProcessed: 3,
+            imageTotal: 8,
+            videoProcessed: 2,
+            videoTotal: 4,
+            imagesWithFaces: 2,
+            videosWithFaces: 1,
+          },
+        }),
+      ),
+    ).toBe("Processed: 3 / 8 images and 2 / 4 videos | Images with faces: 2, Videos with faces: 1");
   });
 
   it("shows rotation-specific counts without adding skipped to processed", () => {
@@ -166,5 +195,47 @@ describe("buildPipelineQueueRightText", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  it("shows the speech model loading hint while the pipeline reports loadingModel", () => {
+    expect(
+      buildPipelineQueueRightText(
+        jobView({
+          pipelineId: "video-speech-to-text",
+          processed: 2,
+          total: 5,
+          details: { loadingModel: "large-v3-turbo-q5_0", skipped: 2 },
+        }),
+      ),
+    ).toBe("Loading speech model large-v3-turbo-q5_0 - it may take up to 1min");
+    expect(
+      buildPipelineQueueRightText(
+        jobView({ pipelineId: "video-speech-to-text", processed: 3, total: 5, details: { skipped: 2 } }),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("currentFileNameForJob", () => {
+  it("returns the file name from a Windows or POSIX currentFile path", () => {
+    expect(
+      currentFileNameForJob(
+        jobView({ pipelineId: "video-speech-to-text", processed: 0, total: 1, details: { currentFile: "C:\\v\\clip.mp4" } }),
+      ),
+    ).toBe("clip.mp4");
+    expect(
+      currentFileNameForJob(
+        jobView({ pipelineId: "photo-analysis", processed: 0, total: 1, details: { currentFile: "/photos/a.jpg" } }),
+      ),
+    ).toBe("a.jpg");
+  });
+
+  it("returns null when the job is not running or has no current file", () => {
+    expect(
+      currentFileNameForJob(
+        jobView({ pipelineId: "photo-analysis", processed: 1, total: 1, state: "succeeded", details: { currentFile: "/a.jpg" } }),
+      ),
+    ).toBeNull();
+    expect(currentFileNameForJob(jobView({ pipelineId: "photo-analysis", processed: 0, total: 1 }))).toBeNull();
   });
 });

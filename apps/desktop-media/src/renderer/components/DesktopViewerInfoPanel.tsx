@@ -12,12 +12,14 @@ import {
   getPeopleBoundingBoxes,
   normalizeMetadata,
   type BeingBoundingBox,
+  type SpeechAnalysisMetadata,
 } from "@emk/media-metadata-core";
 import { getCategoryLabel, getGenderLabel, toHeadlineLabel } from "../lib/label-formatters";
 import { DesktopInfoSection, type DesktopInfoField } from "./DesktopInfoSection";
 import { DesktopViewerInfoRatingRow } from "./DesktopViewerInfoRatingRow";
 import { DesktopFaceTagsTabContent } from "./DesktopFaceTagsTabContent";
 import { DesktopMetadataTree } from "./DesktopMetadataTree";
+import { DesktopSpeechInfoSection } from "./DesktopSpeechInfoSection";
 import type { DesktopViewerInfoPanelProps, DesktopViewerItem } from "../types/viewer-types";
 import type { DateDisplayFormat, DesktopFaceInstance, DesktopMediaItemMetadata } from "../../shared/ipc";
 import { formatPhotoTakenListLabel } from "../lib/photo-date-format";
@@ -169,6 +171,10 @@ function getViewerTopDate(metadata: DesktopMediaItemMetadata, dateFormat: DateDi
     ),
     showPathDateWarning: false,
   };
+}
+
+function normalizedSpeech(aiMetadata: unknown): SpeechAnalysisMetadata | null {
+  return normalizeMetadata(aiMetadata ?? null).speech_analysis ?? null;
 }
 
 function buildInfoSections(metadata: DesktopMediaItemMetadata, dateFormat: DateDisplayFormat): {
@@ -434,6 +440,9 @@ export function DesktopViewerInfoPanel({
   const imageRef = useRef<HTMLImageElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [imageInfo, setImageInfo] = useState<FaceOverlayImageInfo | null>(null);
+  const [fetchedMetadata, setFetchedMetadata] = useState<DesktopMediaItemMetadata | null>(null);
+  const [listedFaceCount, setListedFaceCount] = useState(0);
+  const infoMetadata = fetchedMetadata ?? metadata;
 
   const updateImageInfo = useCallback(() => {
     if (!imageRef.current || !imageContainerRef.current) return;
@@ -471,6 +480,18 @@ export function DesktopViewerInfoPanel({
   useEffect(() => {
     setCurrentBoundingBoxes(peopleBoundingBoxes);
   }, [peopleBoundingBoxes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFetchedMetadata(null);
+    setListedFaceCount(0);
+    void onRefreshMetadata(item.sourcePath).then((next) => {
+      if (!cancelled && next) setFetchedMetadata(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.sourcePath, onRefreshMetadata]);
 
   useEffect(() => {
     if (isVideo) {
@@ -527,8 +548,8 @@ export function DesktopViewerInfoPanel({
     };
   }, [updateImageInfo, item.id, isVideo]);
 
-  const infoSections = metadata ? buildInfoSections(metadata, dateFormat) : null;
-  const topDate = metadata ? getViewerTopDate(metadata, dateFormat) : { dateText: "", showPathDateWarning: false };
+  const infoSections = infoMetadata ? buildInfoSections(infoMetadata, dateFormat) : null;
+  const topDate = infoMetadata ? getViewerTopDate(infoMetadata, dateFormat) : { dateText: "", showPathDateWarning: false };
 
   const { sortedBoxes: sortedFaceOverlayBoxes, displayToOriginal: faceDisplayOrder } = useMemo(
     () => getFaceTagsSortedBoxesAndOrder(currentBoundingBoxes),
@@ -596,11 +617,11 @@ export function DesktopViewerInfoPanel({
         {
           id: "info",
           label: "Info",
-          content: metadata ? (
+          content: infoMetadata ? (
             <div className="grid gap-3">
               <DesktopViewerInfoRatingRow
                 sourcePath={item.sourcePath}
-                starRating={metadata.starRating}
+                starRating={infoMetadata.starRating}
                 leftContent={
                   topDate.dateText ? (
                     <span className="text-base font-semibold text-foreground">{topDate.dateText}</span>
@@ -615,9 +636,9 @@ export function DesktopViewerInfoPanel({
                   ) : null
                 }
               />
-              <h3 className="mb-1 text-lg text-foreground">{primaryInfoHeadline(item, metadata)}</h3>
+              <h3 className="mb-1 text-lg text-foreground">{primaryInfoHeadline(item, infoMetadata)}</h3>
               {(() => {
-                const locLine = formatCatalogLocationLine(metadata);
+                const locLine = formatCatalogLocationLine(infoMetadata);
                 if (!locLine) return null;
                 return (
                   <p className="m-0 text-sm text-muted-foreground">
@@ -637,6 +658,7 @@ export function DesktopViewerInfoPanel({
                   emptyStateMessage="No video-specific metadata available."
                 />
               ) : null}
+              {isVideo ? <DesktopSpeechInfoSection speech={normalizedSpeech(infoMetadata.aiMetadata)} /> : null}
               <DesktopInfoSection
                 title={isVideo ? "Capture data" : "Image capture data"}
                 fields={infoSections?.captureDataFields ?? []}
@@ -670,39 +692,42 @@ export function DesktopViewerInfoPanel({
         {
           id: "tags",
           label: "Face tags",
-          badgeCount: currentBoundingBoxes.length > 0 ? currentBoundingBoxes.length : undefined,
+          badgeCount: isVideo
+            ? listedFaceCount > 0
+              ? listedFaceCount
+              : undefined
+            : currentBoundingBoxes.length > 0
+              ? currentBoundingBoxes.length
+              : undefined,
           content: (
             <div className="grid gap-3">
-              {isVideo ? (
-                <p className="m-0 text-sm text-muted-foreground">
-                  Face tags are available for images only.
-                </p>
-              ) : (
-                <DesktopFaceTagsTabContent
-                  mediaItemId={item.mediaItemId ?? metadata?.id ?? null}
-                  sourcePath={item.sourcePath}
-                  imageWidth={metadata?.width ?? null}
-                  imageHeight={metadata?.height ?? null}
-                  boundingBoxes={currentBoundingBoxes}
-                  faceDisplayOrder={faceDisplayOrder}
-                  selectedIndex={selectedFaceIndex}
-                  onSelectIndex={(index) =>
-                    setSelectedFaceIndex((current) => (current === index ? null : index))
-                  }
-                  onBoundingBoxesReplace={(boxes) => {
-                    setCurrentBoundingBoxes(boxes);
-                    setSelectedFaceIndex((current) =>
-                      current !== null && current >= boxes.length ? null : current,
-                    );
-                  }}
-                  onRefreshMetadataBoxes={async () => {
-                    const refreshed = await onRefreshMetadata(item.sourcePath);
-                    const boxes = getPeopleBoundingBoxes(refreshed?.aiMetadata ?? null);
-                    setCurrentBoundingBoxes(boxes);
-                    return boxes;
-                  }}
-                />
-              )}
+              <DesktopFaceTagsTabContent
+                mediaItemId={item.mediaItemId ?? infoMetadata?.id ?? null}
+                sourcePath={item.sourcePath}
+                imageWidth={infoMetadata?.width ?? null}
+                imageHeight={infoMetadata?.height ?? null}
+                boundingBoxes={isVideo ? [] : currentBoundingBoxes}
+                faceDisplayOrder={isVideo ? [] : faceDisplayOrder}
+                selectedIndex={selectedFaceIndex}
+                onSelectIndex={(index) =>
+                  setSelectedFaceIndex((current) => (current === index ? null : index))
+                }
+                onBoundingBoxesReplace={(boxes) => {
+                  if (isVideo) return;
+                  setCurrentBoundingBoxes(boxes);
+                  setSelectedFaceIndex((current) =>
+                    current !== null && current >= boxes.length ? null : current,
+                  );
+                }}
+                onRefreshMetadataBoxes={async () => {
+                  const refreshed = await onRefreshMetadata(item.sourcePath);
+                  const boxes = getPeopleBoundingBoxes(refreshed?.aiMetadata ?? null);
+                  if (!isVideo) setCurrentBoundingBoxes(boxes);
+                  return boxes;
+                }}
+                onFaceCountChange={setListedFaceCount}
+                usePlaceholderThumbnail={isVideo}
+              />
             </div>
           ),
         },
@@ -712,8 +737,8 @@ export function DesktopViewerInfoPanel({
           content: (
             <div className="grid gap-3">
               <h3 className="mb-3.5 text-lg text-foreground">Metadata</h3>
-              {metadata ? (
-                <DesktopMetadataTree data={metadata.aiMetadata ?? metadata} />
+              {infoMetadata ? (
+                <DesktopMetadataTree data={infoMetadata.aiMetadata ?? infoMetadata} />
               ) : (
                 <p className="m-0 text-muted-foreground">No metadata available</p>
               )}

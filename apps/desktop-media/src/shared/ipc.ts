@@ -225,6 +225,7 @@ export const IPC_CHANNELS = {
   cancelPathAnalysis: "media:cancel-path-analysis",
   pathAnalysisProgress: "media:path-analysis-progress",
   getGeocoderCacheStatus: "media:get-geocoder-cache-status",
+  getSpeechModelCacheStatus: "media:get-speech-model-cache-status",
   getGpsGeocodePendingCount: "media:get-gps-geocode-pending-count",
   initGeocoder: "media:init-geocoder",
   geocoderInitProgress: "media:geocoder-init-progress",
@@ -265,6 +266,7 @@ export interface AppSettings {
   wrongImageRotationDetection: WrongImageRotationDetectionSettings;
   faceDetection: FaceDetectionSettings;
   photoAnalysis: PhotoAnalysisSettings;
+  speechAnalysis: SpeechAnalysisSettings;
   folderScanning: FolderScanningSettings;
   smartAlbums: SmartAlbumSettings;
   aiImageSearch: AiImageSearchSettings;
@@ -438,6 +440,16 @@ export type FaceDetectorModelId =
 export interface FaceDetectionSettings {
   /** Active face-detection model; switching triggers an on-demand download if not yet cached. */
   detectorModel: FaceDetectorModelId;
+  /**
+   * When true, folder face-detection jobs also sample video files after images.
+   * Default on; persist this with the rest of `faceDetection` or the pipeline never sees it.
+   */
+  detectFacesInVideoFiles: boolean;
+  /**
+   * Seconds between sampled frames when detecting faces in a video (time-based, not every N frames).
+   * Typical range 0.25–5. Clamped on sanitize.
+   */
+  videoFaceSampleIntervalSec: number;
   minConfidenceThreshold: number;
   minFaceBoxShortSideRatio: number;
   faceBoxOverlapMergeRatio: number;
@@ -769,6 +781,8 @@ export const SMART_ALBUM_EXCLUDABLE_IMAGE_CATEGORY_OPTIONS: ReadonlyArray<{ patt
 
 export const DEFAULT_FACE_DETECTION_SETTINGS: FaceDetectionSettings = {
   detectorModel: "yolov12l-face",
+  detectFacesInVideoFiles: true,
+  videoFaceSampleIntervalSec: 1,
   minConfidenceThreshold: 0.75,
   minFaceBoxShortSideRatio: 0.03,
   faceBoxOverlapMergeRatio: 0.5,
@@ -807,6 +821,35 @@ export const DEFAULT_WRONG_IMAGE_ROTATION_DETECTION_SETTINGS: WrongImageRotation
   enabled: true,
   minConfidenceThreshold: 0.9,
   useFaceLandmarkFeaturesFallback: true,
+};
+
+export interface SpeechAnalysisSettings {
+  /** When true, the speech model may be used. Turning this on starts the model download. */
+  enabled: boolean;
+  /** whisper.cpp language: `auto` detects and transcribes in that language, or a code such as `en`, `fr`, `ru`. */
+  language: string;
+  /** Persist per-word timestamps. Off by default because long videos grow large. */
+  wordTimestamps: boolean;
+  /** Persist silence gaps between speech segments. */
+  includeSilenceSpans: boolean;
+  /** Minimum gap, in milliseconds, stored as silence. */
+  silenceMinMs: number;
+  /** Mark filler words from `fillerWords`. Off by default. */
+  fillerDetection: boolean;
+  /** Comma-separated filler words and phrases. */
+  fillerWords: string;
+}
+
+export const DEFAULT_SPEECH_FILLER_WORDS = "um, uh, er, ah, hmm, like, you know, i mean";
+
+export const DEFAULT_SPEECH_ANALYSIS_SETTINGS: SpeechAnalysisSettings = {
+  enabled: false,
+  language: "auto",
+  wordTimestamps: false,
+  includeSilenceSpans: true,
+  silenceMinMs: 800,
+  fillerDetection: false,
+  fillerWords: DEFAULT_SPEECH_FILLER_WORDS,
 };
 
 export const DEFAULT_FOLDER_SCANNING_SETTINGS: FolderScanningSettings = {
@@ -862,6 +905,7 @@ export const DEFAULT_APP_SETTINGS: Omit<AppSettings, "clientId"> = {
   wrongImageRotationDetection: DEFAULT_WRONG_IMAGE_ROTATION_DETECTION_SETTINGS,
   faceDetection: DEFAULT_FACE_DETECTION_SETTINGS,
   photoAnalysis: DEFAULT_PHOTO_ANALYSIS_SETTINGS,
+  speechAnalysis: DEFAULT_SPEECH_ANALYSIS_SETTINGS,
   folderScanning: DEFAULT_FOLDER_SCANNING_SETTINGS,
   smartAlbums: DEFAULT_SMART_ALBUM_SETTINGS,
   aiImageSearch: DEFAULT_AI_IMAGE_SEARCH_SETTINGS,
@@ -1119,6 +1163,8 @@ export interface FolderAiCoverageReport {
   face: FolderAiPipelineCounts;
   semantic: FolderAiPipelineCounts;
   rotation: FolderAiPipelineCounts;
+  /** Video speech-to-text. `totalImages` is the video count. */
+  speech: FolderAiPipelineCounts;
   geo: FolderGeoCoverageReport;
 }
 
@@ -1173,6 +1219,10 @@ export interface FolderFaceSummary {
   childFaces: number;
   adultFaces: number;
   oneMainSubjectWithBackgroundFaces: number;
+  /** Present when Settings include videos in face detection. */
+  totalVideos?: number;
+  faceAnalyzedVideos?: number;
+  videosWithFaces?: number;
   faceCountHistogram: FolderFaceCountHistogram;
   mainSubjectHistogram: FolderFaceMainSubjectHistogram;
   topPersonTags: FolderFaceTopPersonTag[];
@@ -1866,6 +1916,10 @@ export type GeocoderInitProgressEvent = {
 };
 
 export interface GeocoderCacheStatus {
+  hasLocalCopy: boolean;
+}
+
+export interface SpeechModelCacheStatus {
   hasLocalCopy: boolean;
 }
 
@@ -2634,6 +2688,7 @@ export interface DesktopApi {
   cancelPathAnalysis: (jobId: string) => Promise<boolean>;
   onPathAnalysisProgress: (listener: PathAnalysisProgressListener) => () => void;
   getGeocoderCacheStatus: () => Promise<GeocoderCacheStatus>;
+  getSpeechModelCacheStatus: () => Promise<SpeechModelCacheStatus>;
   /** Items under folderPath that have GPS coords but still need reverse-geocoding into catalog fields. */
   getGpsGeocodePendingCount: (request: { folderPath: string; recursive?: boolean }) => Promise<number>;
   initGeocoder: (options?: { forceRefresh?: boolean }) => Promise<void>;

@@ -163,6 +163,11 @@ export const photoAnalysisDefinition: PipelineDefinition<PhotoAnalysisParams, Ph
         break;
       }
       const image = selected[i]!;
+      ctx.report({
+        type: "item-updated",
+        message: `Analyzing: ${image.name}`,
+        details: { ...baseProgressDetails, currentFile: image.path },
+      });
       try {
         await ensureMetadataForImage(image.path);
         await runWrongImageRotationPrecheck({
@@ -211,7 +216,7 @@ export const photoAnalysisDefinition: PipelineDefinition<PhotoAnalysisParams, Ph
           processed: i + 1,
           total: selected.length,
           message: `Analyzed: ${image.name}`,
-          details: { ...baseProgressDetails, path: image.path, mediaId: mediaId ?? null },
+          details: { ...baseProgressDetails, path: image.path, currentFile: image.path, mediaId: mediaId ?? null },
         });
       } catch (error) {
         failed += 1;
@@ -222,7 +227,7 @@ export const photoAnalysisDefinition: PipelineDefinition<PhotoAnalysisParams, Ph
           processed: i + 1,
           total: selected.length,
           message: `Failed: ${image.name}`,
-          details: { ...baseProgressDetails, path: image.path, error: reason },
+          details: { ...baseProgressDetails, path: image.path, currentFile: image.path, error: reason },
         });
       }
     }

@@ -439,6 +439,7 @@ const api: DesktopApi = {
     };
   },
   getGeocoderCacheStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getGeocoderCacheStatus),
+  getSpeechModelCacheStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getSpeechModelCacheStatus),
   getGpsGeocodePendingCount: (request: { folderPath: string; recursive?: boolean }) =>
     ipcRenderer.invoke(IPC_CHANNELS.getGpsGeocodePendingCount, request),
   initGeocoder: (options) => ipcRenderer.invoke(IPC_CHANNELS.initGeocoder, options),

@@ -4,7 +4,7 @@ import type {
   FolderFaceSummaryReport,
   FolderFaceTopPersonTag,
 } from "../../src/shared/ipc";
-import { IMAGE_EXTENSIONS } from "../../src/shared/ipc";
+import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from "../../src/shared/ipc";
 import { getDesktopDatabase } from "./client";
 import { DEFAULT_LIBRARY_ID } from "./folder-analysis-status";
 
@@ -26,6 +26,14 @@ function buildImageFilePredicate(): string {
   return `(mi.mime_type LIKE 'image/%' OR ${extClauses.join(" OR ")})`;
 }
 
+function buildVideoFilePredicate(): string {
+  const extClauses = [...VIDEO_EXTENSIONS].map((ext) => {
+    const pat = `%${ext}`.replace(/'/g, "''");
+    return `lower(mi.filename) LIKE '${pat}'`;
+  });
+  return `(mi.media_kind = 'video' OR mi.mime_type LIKE 'video/%' OR ${extClauses.join(" OR ")})`;
+}
+
 function emptySummary(folderPath: string, recursive: boolean): FolderFaceSummary {
   return {
     folderPath,
@@ -45,6 +53,9 @@ function emptySummary(folderPath: string, recursive: boolean): FolderFaceSummary
     childFaces: 0,
     adultFaces: 0,
     oneMainSubjectWithBackgroundFaces: 0,
+    totalVideos: 0,
+    faceAnalyzedVideos: 0,
+    videosWithFaces: 0,
     faceCountHistogram: {
       oneFace: 0,
       twoFaces: 0,
@@ -68,6 +79,7 @@ export function getFolderFaceSummary(params: {
   recursive: boolean;
   libraryId?: string;
   topTagsLimit?: number;
+  includeVideosInFaceSummary?: boolean;
 }): FolderFaceSummary {
   const libraryId = params.libraryId ?? DEFAULT_LIBRARY_ID;
   const topTagsLimit = Math.max(1, Math.min(20, params.topTagsLimit ?? 10));
@@ -240,7 +252,7 @@ export function getFolderFaceSummary(params: {
     similarFaceCount: Number(tagRow.similar_face_count ?? 0),
   }));
 
-  return {
+  const summary: FolderFaceSummary = {
     folderPath,
     recursive: params.recursive,
     totalImages,
@@ -273,13 +285,50 @@ export function getFolderFaceSummary(params: {
       fiveOrMoreMainSubjects: Number(row?.five_plus_main_subject_images ?? 0),
     },
     topPersonTags,
+    totalVideos: 0,
+    faceAnalyzedVideos: 0,
+    videosWithFaces: 0,
   };
+
+  if (params.includeVideosInFaceSummary) {
+    const videoPred = buildVideoFilePredicate();
+    const videoSql = `
+      SELECT
+        COUNT(*) AS total_videos,
+        SUM(CASE WHEN mi.face_detection_processed_at IS NOT NULL
+          AND (mi.face_detection_failed_at IS NULL OR mi.face_detection_processed_at > mi.face_detection_failed_at)
+          THEN 1 ELSE 0 END) AS face_analyzed_videos,
+        SUM(CASE WHEN EXISTS (
+          SELECT 1 FROM media_face_instances fi
+          WHERE fi.media_item_id = mi.id AND fi.library_id = mi.library_id
+        ) THEN 1 ELSE 0 END) AS videos_with_faces
+      FROM media_items mi
+      WHERE mi.library_id = ?
+        AND mi.deleted_at IS NULL
+        AND ${videoPred}
+        AND mi.source_path LIKE ? ESCAPE '~'
+        ${depthClause}
+    `;
+    const videoArgs: unknown[] = [libraryId, likePattern];
+    if (!params.recursive) videoArgs.push(folderPrefix, sep);
+    const videoRow = db.prepare(videoSql).get(...videoArgs) as {
+      total_videos: number | null;
+      face_analyzed_videos: number | null;
+      videos_with_faces: number | null;
+    };
+    summary.totalVideos = Number(videoRow?.total_videos ?? 0);
+    summary.faceAnalyzedVideos = Number(videoRow?.face_analyzed_videos ?? 0);
+    summary.videosWithFaces = Number(videoRow?.videos_with_faces ?? 0);
+  }
+
+  return summary;
 }
 
 export function getFolderFaceSummaryReport(params: {
   folderPath: string;
   libraryId?: string;
   subfolderPaths: Array<{ folderPath: string; name: string }>;
+  includeVideosInFaceSummary?: boolean;
 }): FolderFaceSummaryReport {
   const normalized = params.folderPath?.trim();
   if (!normalized) {
@@ -289,24 +338,28 @@ export function getFolderFaceSummaryReport(params: {
       subfolders: [],
     };
   }
+  const videoOptions = { includeVideosInFaceSummary: params.includeVideosInFaceSummary };
   return {
     selectedWithSubfolders: getFolderFaceSummary({
       folderPath: normalized,
       recursive: true,
       libraryId: params.libraryId,
+      ...videoOptions,
     }),
     selectedDirectOnly: getFolderFaceSummary({
       folderPath: normalized,
       recursive: false,
       libraryId: params.libraryId,
+      ...videoOptions,
     }),
-    subfolders: params.subfolderPaths.map((node) => ({
-      folderPath: node.folderPath,
-      name: node.name,
+    subfolders: params.subfolderPaths.map((subfolder) => ({
+      folderPath: subfolder.folderPath,
+      name: subfolder.name,
       summary: getFolderFaceSummary({
-        folderPath: node.folderPath,
+        folderPath: subfolder.folderPath,
         recursive: true,
         libraryId: params.libraryId,
+        ...videoOptions,
       }),
     })),
   };

@@ -247,6 +247,16 @@ export const UI_TEXT = {
   gpsLocationDetectionDescription: `When enabled, images with GPS coordinates are reverse-geocoded during metadata scan to fill in Country, State/Province, and City. This data is used in search filters, folder/album views, and smart albums.
 
 First-time setup downloads ~2 GB of GeoNames geographic data (cached locally for future use).`,
+  speechToTextSectionTitle: "Video speech to text",
+  speechToTextEnableTitle: "Enable video speech to text",
+  speechToTextEnableDescription:
+    "Turns on local speech transcription for videos. The first time you enable this, the app downloads Whisper large-v3-turbo (about 600 MB) and shows progress in Background operations.",
+  speechToTextConfirmTitle: "Download speech model?",
+  speechToTextConfirmMessage:
+    "This will download approximately 600 MB: the whisper.cpp program, the Whisper large-v3-turbo model, and a small voice-activity model. The download runs in the background and stays on this device.",
+  speechToTextLocalCopyTitle: "Use local speech model?",
+  speechToTextLocalCopyMessage:
+    "Whisper is already present on this device. You can use the local copy now, or download it again.",
   gpsLocationDetectionConfirmTitle: "Download location data?",
   gpsLocationDetectionConfirmMessage: "This will download approximately 2 GB of geographic data from GeoNames. The download happens in the background and data is cached locally for future use.",
   gpsLocationDetectionConfirmOk: "Download",

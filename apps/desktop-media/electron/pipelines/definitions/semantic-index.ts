@@ -115,6 +115,10 @@ export const semanticIndexDefinition: PipelineDefinition<SemanticIndexParams, Se
         break;
       }
       const img = selected[i]!;
+      ctx.report({
+        type: "item-updated",
+        details: { completed, failed, cancelled, skipped: skippedExisting, currentFile: img.path },
+      });
       try {
         await ensureMetadataForImage(img.path);
         await runWrongImageRotationPrecheck({
@@ -171,7 +175,7 @@ export const semanticIndexDefinition: PipelineDefinition<SemanticIndexParams, Se
         processed: i + 1,
         total: selected.length,
         message: `Indexed ${i + 1}/${selected.length}`,
-        details: { completed, failed, cancelled, skipped: skippedExisting },
+        details: { completed, failed, cancelled, skipped: skippedExisting, currentFile: img.path },
       });
     }
     logVerbose(

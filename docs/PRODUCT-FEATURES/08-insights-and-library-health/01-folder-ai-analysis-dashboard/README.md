@@ -3,7 +3,7 @@ id: F-08-01
 module: 08-insights-and-library-health
 title: Folder AI analysis dashboard
 status: shipped
-last_reviewed: 2026-08-26
+last_reviewed: 2026-08-29
 source_of_truth:
   - apps/desktop-media/src/renderer/components/DesktopFolderAiSummaryView.tsx
   - apps/desktop-media/src/renderer/components/folder-ai-summary/
@@ -30,7 +30,8 @@ video counts appear first; scan freshness, geo-location, AI search index, face d
 analysis and wrongly rotated images each have their own card, which stays on a spinner until
 *that* card's data arrives so the user never sees a misleading zero. Play controls enqueue the
 matching job in Background operations and always cover the folder **and its sub-folders**, in
-**missing only** mode.
+**missing only** mode. When **Detect faces in video files** is on, the face-detection card's
+denominator includes videos so a folder of unprocessed clips is not marked done.
 
 Tabs keep the detail: **Subfolders** (AI pipelines plus a nested quick-scan table), **Face
 detection** statistics, and **Geo-location**. Insights → **Folder analysis status** and the
@@ -83,7 +84,7 @@ This is not a photo browser. Thumbnails stay on the grid; this view replaces tha
 | F-08-01.2 | Progressive load | Each card group paints when its data is ready | shipped |
 | F-08-01.3 | Run from a card | Play enqueues the job for the folder tree, missing-only | shipped |
 | F-08-01.4 | Subfolders tables | Per-child AI coverage and a nested quick-scan table | shipped |
-| F-08-01.5 | Face detection tab | Faces found/tagged, suggested matches, people per image | shipped |
+| F-08-01.5 | Face detection tab | Faces found/tagged, suggested matches, people per image; image vs video analyzed counts when videos are included | shipped |
 | F-08-01.6 | Geo-location tab | GPS coverage, extracted place names, path-LLM location | shipped |
 | F-08-01.7 | Empty-folder auto-open | Optional jump to the tree summary | shipped |
 | F-08-01.8 | Insights hub | Pick a library root when more than one exists | shipped |

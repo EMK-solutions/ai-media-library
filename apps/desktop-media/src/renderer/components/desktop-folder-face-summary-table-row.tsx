@@ -95,13 +95,13 @@ export function FaceSummaryRow({
   actionPendingPipeline,
 }: FaceSummaryRowProps): ReactElement {
   const loading = summary === undefined || coverage === undefined;
-  const zeroImages = !loading && coverage.totalImages === 0;
-  const zeroFaces = !loading && !zeroImages && summary.detectedFaces === 0;
+  const zeroMedia = !loading && coverage.totalImages === 0 && coverage.face.totalImages === 0;
+  const zeroFaces = !loading && !zeroMedia && summary.detectedFaces === 0;
   /** Face status shows "not done" or 0% partial — hide face-detail columns (not dashes). */
   const hideFaceDetailColumns =
     !loading &&
-    !zeroImages &&
-    coverage.totalImages > 0 &&
+    !zeroMedia &&
+    coverage.face.totalImages > 0 &&
     (coverage.face.label === "not_done" ||
       (coverage.face.label === "partial" &&
         coverage.face.doneCount === 0 &&
@@ -132,7 +132,14 @@ export function FaceSummaryRow({
         {loading ? (
           <CellSpinner />
         ) : (
-          <span className="font-semibold text-foreground">{formatGroupedInt(coverage.totalImages)}</span>
+          <div className="space-y-0.5">
+            <span className="font-semibold text-foreground">{formatGroupedInt(coverage.totalImages)}</span>
+            {(summary.totalVideos ?? 0) > 0 ? (
+              <div className="text-sm text-muted-foreground">
+                {formatGroupedInt(summary.totalVideos ?? 0)} videos
+              </div>
+            ) : null}
+          </div>
         )}
       </td>
       <td className={cn("border-b border-border px-3 py-2.5 text-left align-top", noBottomBorder && "border-b-0")}>
@@ -151,14 +158,14 @@ export function FaceSummaryRow({
       <td className={cn("border-b border-border px-3 py-2.5 text-left align-top", noBottomBorder && "border-b-0")}>
         {loading ? (
           <CellSpinner />
-        ) : zeroImages || hideFaceDetailColumns ? null : (
+        ) : zeroMedia || hideFaceDetailColumns ? null : (
           <FacesTaggedBody summary={summary} showTaggedSubline={summary.detectedFaces > 0} />
         )}
       </td>
       <td className={cn("border-b border-border px-3 py-2.5 text-left align-top", noBottomBorder && "border-b-0")}>
         {loading ? (
           <CellSpinner />
-        ) : zeroImages || hideFaceDetailColumns ? null : zeroFaces ? (
+        ) : zeroMedia || hideFaceDetailColumns ? null : zeroFaces ? (
           <TableCellEmDash />
         ) : (
           <SuggestedMatchesBody summary={summary} />
@@ -167,7 +174,7 @@ export function FaceSummaryRow({
       <td className={cn("border-b border-border px-3 py-2.5 text-left align-top", noBottomBorder && "border-b-0")}>
         {loading ? (
           <CellSpinner />
-        ) : zeroImages || hideFaceDetailColumns ? null : zeroFaces ? (
+        ) : zeroMedia || hideFaceDetailColumns ? null : zeroFaces ? (
           <TableCellEmDash />
         ) : (
           <PeoplePerImageBody summary={summary} />

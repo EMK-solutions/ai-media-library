@@ -20,6 +20,7 @@ import { buildFolderTreeQuickScanBreakdown } from "../lib/folder-tree-quick-scan
 import { readSettings } from "../storage";
 import { getDesktopDatabase } from "../db/client";
 import { getFolderAiCoverage, getFolderAiRollupsForPaths } from "../db/folder-ai-coverage";
+import { readFaceCoverageQueryOptions } from "../lib/face-coverage-settings";
 import { getWronglyRotatedImagesPage } from "../db/folder-ai-wrongly-rotated-images";
 import { getFolderFaceSummaryReport } from "../db/folder-face-summary";
 import { getFolderSummaryOverview } from "../db/folder-summary-overview";
@@ -32,12 +33,8 @@ import { MULTIMODAL_EMBED_MODEL } from "../semantic-embeddings";
 const DEBUG_FOLDER_AI_SUMMARY = false;
 
 async function getRotationConfidenceThreshold(): Promise<number> {
-  try {
-    const settings = await readSettings(app.getPath("userData"));
-    return settings.wrongImageRotationDetection.minConfidenceThreshold;
-  } catch {
-    return 0.9;
-  }
+  const options = await readFaceCoverageQueryOptions();
+  return options.minRotationConfidenceThreshold;
 }
 
 function debugFolderAiSummary(message: string, details?: Record<string, unknown>): void {
@@ -177,8 +174,11 @@ export function registerFolderAiSummaryHandlers(): void {
         };
       }
 
-      const minRotationConfidenceThreshold = await getRotationConfidenceThreshold();
-      const coverageParams = { minRotationConfidenceThreshold };
+      const coverageOptions = await readFaceCoverageQueryOptions();
+      const coverageParams = {
+        minRotationConfidenceThreshold: coverageOptions.minRotationConfidenceThreshold,
+        includeVideosInFaceCoverage: coverageOptions.includeVideosInFaceCoverage,
+      };
       const selectedWithSubfolders = getFolderAiCoverage({
         folderPath: normalized,
         recursive: true,
@@ -215,9 +215,11 @@ export function registerFolderAiSummaryHandlers(): void {
         });
       }
       const children = await readFolderChildren(normalized);
+      const coverageOptions = await readFaceCoverageQueryOptions();
       return getFolderFaceSummaryReport({
         folderPath: normalized,
         subfolderPaths: children.map((node) => ({ folderPath: node.path, name: node.name })),
+        includeVideosInFaceSummary: coverageOptions.includeVideosInFaceCoverage,
       });
     },
   );
@@ -226,10 +228,12 @@ export function registerFolderAiSummaryHandlers(): void {
     IPC_CHANNELS.getFolderAiCoverage,
     async (_event, folderPath: string, recursive: boolean) => {
       const normalized = folderPath?.trim() ?? "";
+      const coverageOptions = await readFaceCoverageQueryOptions();
       return getFolderAiCoverage({
         folderPath: normalized,
         recursive: recursive === true,
-        minRotationConfidenceThreshold: await getRotationConfidenceThreshold(),
+        minRotationConfidenceThreshold: coverageOptions.minRotationConfidenceThreshold,
+        includeVideosInFaceCoverage: coverageOptions.includeVideosInFaceCoverage,
       });
     },
   );
@@ -239,7 +243,10 @@ export function registerFolderAiSummaryHandlers(): void {
       return {};
     }
     const paths = folderPaths.filter((p): p is string => typeof p === "string");
-    return getFolderAiRollupsForPaths(paths);
+    const coverageOptions = await readFaceCoverageQueryOptions();
+    return getFolderAiRollupsForPaths(paths, undefined, {
+      includeVideosInFaceCoverage: coverageOptions.includeVideosInFaceCoverage,
+    });
   });
 
   ipcMain.handle(

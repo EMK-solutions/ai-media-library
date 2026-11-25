@@ -7,8 +7,7 @@ import {
 } from "../../src/shared/ipc";
 import { getFolderAiCoverage } from "../db/folder-ai-coverage";
 import { readFolderChildren } from "../fs-media";
-import { readSettings } from "../storage";
-import { app } from "electron";
+import { readFaceCoverageQueryOptions } from "../lib/face-coverage-settings";
 import { buildFolderFaceSummaryStreamSpecs, streamFaceSummaryProcessingOrder } from "./folder-face-summary-stream";
 
 function yieldToEventLoop(): Promise<void> {
@@ -28,6 +27,7 @@ function runAiSummaryStream(
   jobId: string,
   specs: FolderFaceSummaryStreamRowSpec[],
   minRotationConfidenceThreshold: number,
+  includeVideosInFaceCoverage: boolean,
 ): void {
   void (async () => {
     try {
@@ -42,6 +42,7 @@ function runAiSummaryStream(
           folderPath: spec.folderPath,
           recursive: spec.recursive,
           minRotationConfidenceThreshold,
+          includeVideosInFaceCoverage,
         });
         sendProgress(sender, { kind: "row", jobId, rowId: spec.rowId, coverage });
         await yieldToEventLoop();
@@ -73,16 +74,16 @@ export function registerFolderAiSummaryStreamHandlers(): void {
       }
 
       activeJobs.set(wid, { cancelled: false });
-      let minRotationConfidenceThreshold = 0.9;
-      try {
-        const settings = await readSettings(app.getPath("userData"));
-        minRotationConfidenceThreshold = settings.wrongImageRotationDetection.minConfidenceThreshold;
-      } catch {
-        // Use the shared default if settings are unavailable.
-      }
+      const coverageOptions = await readFaceCoverageQueryOptions();
       const children = await readFolderChildren(normalized);
       const rows = buildFolderFaceSummaryStreamSpecs(normalized, children);
-      runAiSummaryStream(event.sender, wid, rows, minRotationConfidenceThreshold);
+      runAiSummaryStream(
+        event.sender,
+        wid,
+        rows,
+        coverageOptions.minRotationConfidenceThreshold,
+        coverageOptions.includeVideosInFaceCoverage,
+      );
 
       return { folderPath: normalized, jobId: wid, rows };
     },

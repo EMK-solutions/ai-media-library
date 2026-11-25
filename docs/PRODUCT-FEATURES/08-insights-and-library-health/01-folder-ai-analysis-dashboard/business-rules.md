@@ -17,3 +17,4 @@ Rules for [F-08-01](README.md).
 | BR-11 | After a metadata scan or AI job completes for a path in this folder's tree, the open dashboard reloads. | Cards would otherwise go stale while the user watches the dock. | `apps/desktop-media/src/renderer/lib/folder-ai-summary-scan-refresh.ts` |
 | BR-12 | Face extra metrics (images with faces / tagged faces) are omitted while face coverage is **not done**. | Those numbers are meaningless before detection has run. | `DesktopFolderAiSummaryDashboard.tsx` |
 | BR-13 | Location details on the geo card mean reverse-geocoded catalog place fields with GPS as the source, not merely "file has coordinates". | Coordinates without a place name are a different gap. | Folder AI coverage / geo card |
+| BR-14 | When **Detect faces in video files** is on, face coverage totals include catalogued videos under the folder. | A folder of unprocessed clips must not look finished. | `apps/desktop-media/electron/db/folder-ai-coverage.ts` |

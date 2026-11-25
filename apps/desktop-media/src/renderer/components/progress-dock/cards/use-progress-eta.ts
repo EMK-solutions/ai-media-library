@@ -6,6 +6,8 @@ interface ProgressEtaParams {
   jobId: string | null;
   processed: number;
   total: number;
+  /** Changing this resets the rolling rate (e.g. image → video phase). */
+  phase?: string | null;
 }
 
 export function useProgressEta({
@@ -13,6 +15,7 @@ export function useProgressEta({
   jobId,
   processed,
   total,
+  phase,
 }: ProgressEtaParams): string | null {
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [tickMs, setTickMs] = useState<number>(Date.now());
@@ -23,7 +26,7 @@ export function useProgressEta({
       return;
     }
     setStartedAtMs(Date.now());
-  }, [running, jobId]);
+  }, [running, jobId, phase]);
 
   useEffect(() => {
     if (!running) {

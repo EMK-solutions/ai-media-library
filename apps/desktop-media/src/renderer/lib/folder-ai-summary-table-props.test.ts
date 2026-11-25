@@ -15,6 +15,7 @@ function mockCoverage(partial: Partial<FolderAiCoverageReport> = {}): FolderAiCo
     face: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
     semantic: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
     rotation: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty", issueCount: 0 },
+    speech: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
     geo: {
       images: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },
       videos: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },

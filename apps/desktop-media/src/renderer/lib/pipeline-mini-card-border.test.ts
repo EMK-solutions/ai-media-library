@@ -24,6 +24,7 @@ function coverage(
     face,
     semantic,
     rotation: pipe("empty", photo.totalImages, 0),
+    speech: pipe("empty", 0, 0),
     geo: {
       images: {
         total: photo.totalImages,

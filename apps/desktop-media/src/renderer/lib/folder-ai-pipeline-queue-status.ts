@@ -13,6 +13,7 @@ const pipelineIdsBySummaryKind: Record<SummaryPipelineKind, PipelineId> = {
   face: "face-detection",
   photo: "photo-analysis",
   rotation: "image-rotation-precheck",
+  speech: "video-speech-to-text",
 };
 
 export function getFolderAiPipelineQueueStatus(options: {

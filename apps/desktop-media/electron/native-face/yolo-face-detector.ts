@@ -198,6 +198,12 @@ function resolveSettings(
   return {
     detectorModel:
       settings?.detectorModel ?? DEFAULT_FACE_DETECTION_SETTINGS.detectorModel,
+    detectFacesInVideoFiles:
+      settings?.detectFacesInVideoFiles ??
+      DEFAULT_FACE_DETECTION_SETTINGS.detectFacesInVideoFiles,
+    videoFaceSampleIntervalSec:
+      settings?.videoFaceSampleIntervalSec ??
+      DEFAULT_FACE_DETECTION_SETTINGS.videoFaceSampleIntervalSec,
     minConfidenceThreshold: clamp(
       settings?.minConfidenceThreshold ?? envConf ?? 0.5,
       0,

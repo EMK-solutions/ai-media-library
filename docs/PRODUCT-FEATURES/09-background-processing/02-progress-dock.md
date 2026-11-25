@@ -3,7 +3,7 @@ id: F-09-02
 module: 09-background-processing
 title: Progress dock
 status: shipped
-last_reviewed: 2026-08-26
+last_reviewed: 2026-08-29
 source_of_truth:
   - apps/desktop-media/src/renderer/components/DesktopProgressDock.tsx
   - apps/desktop-media/src/renderer/components/progress-dock/
@@ -127,6 +127,11 @@ treat `packages/media-store` `BottomPanel` as the shipped UI.
 - Completed queue cards: at most three bundles plus an optional geocoder-recent card.
 - Dismissed recent bundle ids stay dismissed for the session (`dismissedRecentBundleIds`).
 - `aria-label` of the dock is **Background operations**.
+- Face-detection queue cards (and leftover legacy face cards) show
+  `Processed: X / Y images | Images with faces: A`. When the job includes videos:
+  `Processed: X1 / Y1 images and X2 / Y2 videos | Images with faces: A, Videos with faces: B`.
+  Photo-only runs omit the video clauses. The dock does not show a raw detected-face total.
+  Time left resets when the job moves from the image phase to the video phase.
 
 ## 7. Business rules
 
@@ -136,6 +141,7 @@ treat `packages/media-store` `BottomPanel` as the shipped UI.
 | BR-2 | Collapse state is React local state on the app shell, not `BottomPanelSlice`. | Desktop owns this panel. | `App.tsx` `progressPanelCollapsed` |
 | BR-3 | Starting user-owned jobs expands the dock. | The user just asked for work and should see it. | Various `setProgressPanelCollapsed(false)` handlers |
 | BR-4 | Queue UI shows at most three recent bundles even though the scheduler keeps 20. | Keep the completed list short. | `PipelineQueueCards.tsx` |
+| BR-5 | A running card shows **Processing: &lt;file name&gt;** when the pipeline reports `details.currentFile` (AI image analysis, face detection, AI search index, video speech to text). Video speech to text also shows **Loading speech model …** until the first video finishes. | Per-file work can take minutes; the user needs to see it is not stuck. | `PipelineQueueCards.tsx`, `pipeline-queue-progress-stats.ts` |
 
 ## 8. Settings & defaults
 
@@ -169,7 +175,7 @@ No IPC to collapse; it is renderer-only.
 |---|---|---|
 | E2E | `apps/desktop-media/tests/e2e/pipeline-orchestration.spec.ts` | Bundle appears; completed section |
 | Unit | `apps/desktop-media/src/renderer/stores/pipeline-queue-slice.test.ts` | Snapshot and dismiss |
-| Unit | `apps/desktop-media/src/renderer/lib/pipeline-queue-progress-stats.test.ts` | Card stat lines |
+| Unit | `apps/desktop-media/src/renderer/lib/pipeline-queue-progress-stats.test.ts` | Card stat lines, including face image/video copy |
 
 **Coverage gaps:** viewer-hide and collapse have no dedicated E2E in the files listed for this
 module.

@@ -26,6 +26,8 @@ import { descEmbeddingBackfillDefinition } from "./desc-embedding-backfill";
 import { pathLlmAnalysisDefinition } from "./path-llm-analysis";
 import { duplicateMarkedFilesDeleteDefinition } from "./duplicate-marked-files-delete";
 import { folderDuplicateScanDefinition } from "./folder-duplicate-scan";
+import { speechModelInitDefinition } from "./speech-model-init";
+import { videoSpeechToTextDefinition } from "./video-speech-to-text";
 import { registerAllPresets } from "../presets";
 
 /**
@@ -52,6 +54,8 @@ export function registerAllPipelineDefinitions(): void {
   pipelineRegistry.register(pathLlmAnalysisDefinition);
   pipelineRegistry.register(folderDuplicateScanDefinition);
   pipelineRegistry.register(duplicateMarkedFilesDeleteDefinition);
+  pipelineRegistry.register(speechModelInitDefinition);
+  pipelineRegistry.register(videoSpeechToTextDefinition);
 
   // Presets are registered alongside definitions so callers see a populated
   // preset registry by the time the IPC handler accepts requests.

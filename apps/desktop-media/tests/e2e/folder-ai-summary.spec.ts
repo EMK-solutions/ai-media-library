@@ -358,6 +358,7 @@ test.describe("Folder AI summary", () => {
         face: pipeline,
         semantic: pipeline,
         rotation: { ...pipeline, issueCount: 1 },
+        speech: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
         geo,
       }));
       ipcMain.removeHandler("media:get-folder-ai-wrongly-rotated-images");
@@ -432,6 +433,7 @@ test.describe("Folder AI summary", () => {
         face: pipeline,
         semantic: pipeline,
         rotation: { ...pipeline, issueCount: 1 },
+        speech: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
         geo,
       }));
       ipcMain.removeHandler("media:get-folder-ai-wrongly-rotated-images");

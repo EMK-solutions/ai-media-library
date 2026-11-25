@@ -2,7 +2,8 @@ import type { FaceServiceStatus } from "@emk/media-store";
 import type { ReactElement } from "react";
 import type { FaceEtaState } from "../../../hooks/use-eta-tracking";
 import { UI_TEXT } from "../../../lib/ui-text";
-import { formatCount, formatCountRatio } from "../../../lib/progress-stats-format";
+import { formatCount } from "../../../lib/progress-stats-format";
+import { buildFaceDetectionStatsText } from "../../../lib/pipeline-queue-progress-stats";
 import type { DesktopStore } from "../../../stores/desktop-store";
 import { ProgressDockCloseButton } from "../ProgressDockCloseButton";
 import { ProgressCardBody } from "./ProgressCardBody";
@@ -30,7 +31,19 @@ export function FaceDetectionCard({
 }: FaceDetectionCardProps): ReactElement {
   const shouldShowProgress = isDetectingFaces || faceEta.faceTotal > 0;
   const progressPercent = faceEta.faceProgressPercent;
-  const statsText = `Processed: ${formatCountRatio(faceEta.faceProcessed, faceEta.faceTotal)} | Faces: ${formatCount(faceEta.faceCounts.faces)}${
+  const imagesWithFaces = faceEta.faceItems.filter(
+    (item) => item.status === "success" && (item.faceCount ?? 0) > 0,
+  ).length;
+  const statsCore = buildFaceDetectionStatsText(
+    {
+      imageProcessed: faceEta.faceProcessed,
+      imageTotal: faceEta.faceTotal,
+      imagesWithFaces,
+    },
+    faceEta.faceProcessed,
+    faceEta.faceTotal,
+  );
+  const statsText = `${statsCore}${
     faceEta.faceCounts.skipped > 0 ? ` | Skipped: ${formatCount(faceEta.faceCounts.skipped)}` : ""
   }${
     faceEta.faceCounts.failed > 0 ? ` | Failed: ${formatCount(faceEta.faceCounts.failed)}` : ""

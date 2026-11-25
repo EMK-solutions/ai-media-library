@@ -1,7 +1,7 @@
 import type { AppSettings } from "../../shared/ipc";
 import type { EnqueueBundleResponse } from "../../shared/pipeline-ipc";
 
-export type FolderAiPipelineKind = "photo" | "face" | "semantic" | "rotation";
+export type FolderAiPipelineKind = "photo" | "face" | "semantic" | "rotation" | "speech";
 
 interface EnqueueFolderAiPipelineOptions {
   folderPath: string;
@@ -12,12 +12,14 @@ interface EnqueueFolderAiPipelineOptions {
   photoThinkingEnabled?: boolean;
   photoSettings?: AppSettings["photoAnalysis"];
   faceDetectionSettings?: AppSettings["faceDetection"];
+  speechSettings?: AppSettings["speechAnalysis"];
 }
 
 function displayNameForPipeline(pipeline: FolderAiPipelineKind, folderPath: string): string {
   if (pipeline === "photo") return `Photo analysis — ${folderPath}`;
   if (pipeline === "face") return `Face detection — ${folderPath}`;
   if (pipeline === "semantic") return `Semantic index — ${folderPath}`;
+  if (pipeline === "speech") return `Video speech to text — ${folderPath}`;
   return `Image rotation precheck — ${folderPath}`;
 }
 
@@ -76,15 +78,31 @@ export async function enqueueFolderAiPipeline(options: EnqueueFolderAiPipelineOp
                 mode: overrideExisting ? "all" : "missing",
               },
             }
-          : {
-              pipelineId: "image-rotation-precheck" as const,
-              displayName: displayNameForPipeline("rotation", folderPath),
-              params: {
-                folderPath,
-                recursive,
-                force: overrideExisting,
-              },
-            };
+          : options.pipeline === "speech"
+            ? {
+                pipelineId: "video-speech-to-text" as const,
+                displayName: displayNameForPipeline("speech", folderPath),
+                params: {
+                  folderPath,
+                  recursive,
+                  mode: overrideExisting ? "all" : "missing",
+                  wordTimestamps: options.speechSettings?.wordTimestamps,
+                  includeSilenceSpans: options.speechSettings?.includeSilenceSpans,
+                  silenceMinMs: options.speechSettings?.silenceMinMs,
+                  fillerDetection: options.speechSettings?.fillerDetection,
+                  fillerWords: options.speechSettings?.fillerWords,
+                  language: options.speechSettings?.language,
+                },
+              }
+            : {
+                pipelineId: "image-rotation-precheck" as const,
+                displayName: displayNameForPipeline("rotation", folderPath),
+                params: {
+                  folderPath,
+                  recursive,
+                  force: overrideExisting,
+                },
+              };
 
   const result = await window.desktopApi.pipelines.enqueueBundle({
     kind: "single-job",

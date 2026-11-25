@@ -32,6 +32,18 @@ describe("getFtsFieldsFromAiMetadata", () => {
     expect(fields2.location).toBe("Paris");
   });
 
+  it("appends speech transcript text to the description field", () => {
+    const fields = getFtsFieldsFromAiMetadata(
+      {
+        schema_version: "2.0",
+        image_analysis: { description: "AI Desc" },
+        speech_analysis: { text: "hello from the video" },
+      },
+      null,
+    );
+    expect(fields.description).toBe("AI Desc\nhello from the video");
+  });
+
   it("includes FTS rating tokens from embedded.star_rating", () => {
     const fields = getFtsFieldsFromAiMetadata(
       {

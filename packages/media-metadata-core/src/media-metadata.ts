@@ -1,5 +1,7 @@
 // Media metadata types for AI-detected and structured data
 
+import type { SpeechAnalysisMetadata } from "./speech-analysis";
+
 /**
  * Data format version for metadata schema evolution
  */
@@ -353,6 +355,8 @@ export interface MediaMetadataV2 {
   document_data?: DocumentData | null;
   path_extraction?: PathExtractionMetadata | null;
   locations_by_source?: SourcedLocation[] | null;
+  /** Local speech-to-text result for videos. Absent until that pipeline runs. */
+  speech_analysis?: SpeechAnalysisMetadata;
   [key: string]: unknown;
 }
 
