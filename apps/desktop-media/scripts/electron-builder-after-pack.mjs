@@ -159,6 +159,50 @@ async function assertExifToolBinaryUnpacked(unpackedRoot, platformName) {
   }
 }
 
+function ffmpegPlatformPackageName(platformName, arch) {
+  const archName = arch === 1 || arch === "x64" ? "x64" : arch === 3 || arch === "arm64" ? "arm64" : null;
+  if (!archName) return null;
+  return `${platformName}-${archName}`;
+}
+
+/** pnpm stores `@ffmpeg-installer/win32-x64` beside the JS package, not inside it. */
+async function ensureFfmpegBinaryUnpacked(context, unpackedRoot) {
+  const platformPackage = ffmpegPlatformPackageName(context.electronPlatformName, context.arch);
+  if (!platformPackage) return;
+  const binaryName = context.electronPlatformName === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const destDir = path.join(unpackedRoot, "@ffmpeg-installer", platformPackage);
+  const destBinary = path.join(destDir, binaryName);
+  if (await pathExists(destBinary)) return;
+
+  const pnpmRoot = path.resolve(context.packager.projectDir, "..", "..", "node_modules", ".pnpm");
+  const prefix = `@ffmpeg-installer+${platformPackage}@`;
+  let sourceRoot = null;
+  let entries = [];
+  try {
+    entries = await fs.readdir(pnpmRoot, { withFileTypes: true });
+  } catch {
+    entries = [];
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
+    const candidate = path.join(pnpmRoot, entry.name, "node_modules", "@ffmpeg-installer", platformPackage);
+    if (await pathExists(path.join(candidate, "package.json"))) {
+      sourceRoot = candidate;
+      break;
+    }
+  }
+  if (!sourceRoot) {
+    throw new Error(
+      `Missing ffmpeg package @ffmpeg-installer/${platformPackage}. Run pnpm install for this platform, then rebuild.`,
+    );
+  }
+  await fs.mkdir(path.dirname(destDir), { recursive: true });
+  await fs.cp(sourceRoot, destDir, { recursive: true, force: true, dereference: true });
+  if (!(await pathExists(destBinary))) {
+    throw new Error(`ffmpeg binary missing after copy: ${destBinary}`);
+  }
+}
+
 async function ensureExifToolBinaryUnpacked(context, unpackedRoot) {
   const { vendorPackageName, executableName } = exifToolPackageNames(context.electronPlatformName);
   const binaryPath = path.join(unpackedRoot, vendorPackageName, "bin", executableName);
@@ -198,6 +242,7 @@ export default async function afterPack(context) {
 
   if (context.electronPlatformName === "win32" && isX64Arch) {
     await embedWindowsExecutableIcon(context);
+    await ensureFfmpegBinaryUnpacked(context, unpackedRoot);
     await ensureExifToolBinaryUnpacked(context, unpackedRoot);
     await assertExifToolBinaryUnpacked(unpackedRoot, context.electronPlatformName);
     await pruneOnnxForWindowsPack(unpackedRoot);
@@ -206,6 +251,7 @@ export default async function afterPack(context) {
   }
 
   if (context.electronPlatformName === "linux" && isX64Arch) {
+    await ensureFfmpegBinaryUnpacked(context, unpackedRoot);
     await ensureExifToolBinaryUnpacked(context, unpackedRoot);
     await assertExifToolBinaryUnpacked(unpackedRoot, context.electronPlatformName);
     await pruneOnnxForLinuxPack(unpackedRoot);
