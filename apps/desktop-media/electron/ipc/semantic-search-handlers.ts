@@ -37,6 +37,10 @@ import {
   type SemanticFilters,
   type SemanticSearchRow,
 } from "../db/semantic-search";
+import {
+  listVideosMatchingPersonTags,
+  mergePersonMatchingVideosIntoSearchResults,
+} from "../db/person-matching-videos";
 import { searchByKeyword, type KeywordSearchFilters } from "../db/keyword-search";
 import { fuseWithRRF, toRankedList } from "../db/search-fusion";
 import { analyzeSearchQuery, type QueryAnalysis } from "../query-understanding";
@@ -480,6 +484,11 @@ export function registerSemanticSearchHandlers(): void {
           );
         }
         rows = reRanked;
+      }
+
+      if (hasPersonFilter) {
+        const videoHits = listVideosMatchingPersonTags(filters);
+        rows = mergePersonMatchingVideosIntoSearchResults(rows, videoHits);
       }
 
       const rrfLabel =

@@ -1,6 +1,6 @@
 import type { FolderAiPipelineKind } from "../../shared/ipc";
 
-export type SummaryPipelineKind = "semantic" | "face" | "photo" | "rotation";
+export type SummaryPipelineKind = "semantic" | "face" | "photo" | "rotation" | "speech";
 
 export interface FailedListContext {
   folderPath: string;

@@ -107,6 +107,7 @@ export function getFacesNeedingEmbeddings(
        INNER JOIN media_items mi ON mi.id = fi.media_item_id
        WHERE fi.library_id = ?
          AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'
          AND (fi.embedding_json IS NULL OR fi.embedding_status = 'failed' OR fi.embedding_status = 'pending')
          ${whereClause}
        ORDER BY mi.source_path, fi.rowid`,
@@ -167,6 +168,7 @@ export function getFacesNeedingCrops(
        INNER JOIN media_items mi ON mi.id = fi.media_item_id
        WHERE fi.library_id = ?
          AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'
          AND fi.crop_path IS NULL
        ORDER by mi.source_path, fi.rowid`,
     )
@@ -367,6 +369,7 @@ function searchWithSqliteVec(
        LEFT JOIN media_tags t ON t.id = fi.tag_id
        WHERE fi.library_id = ?
          AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'
          AND ${SQL_FI_EMBEDDING_USABLE}
          ${extraWhere}
        ORDER BY distance ASC
@@ -448,6 +451,7 @@ function searchWithClassicCosine(
        LEFT JOIN media_tags t ON t.id = fi.tag_id
        WHERE fi.library_id = ?
          AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'
          AND ${SQL_FI_EMBEDDING_USABLE}
          ${extraWhere}`,
     )
@@ -758,6 +762,7 @@ export function getClusterPersonCentroidMatchStatsBatch(
            AND fi.cluster_id IN (${placeholders})
            AND fi.tag_id IS NULL
            AND mi.deleted_at IS NULL
+           AND mi.media_kind = 'image'
            AND ${SQL_FI_EMBEDDING_USABLE}`,
       )
       .all(libraryId, ...uniqueClusterIds) as Array<{
@@ -835,6 +840,7 @@ export function getClusterMemberFaceIdsForPersonSimilarityFilter(
          AND fi.cluster_id = ?
          AND fi.tag_id IS NULL
          AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'
          AND ${SQL_FI_EMBEDDING_USABLE}`,
     )
     .all(libraryId, clusterId) as Array<{
@@ -933,18 +939,21 @@ export function getFaceClusteringStats(
     .prepare(
       `SELECT
          SUM(CASE
-           WHEN tag_id IS NULL
-            AND embedding_json IS NOT NULL
-            AND embedding_status = 'ready'
+           WHEN fi.tag_id IS NULL
+            AND fi.embedding_json IS NOT NULL
+            AND fi.embedding_status = 'ready'
            THEN 1 ELSE 0 END) AS ready_untagged,
          SUM(CASE
-           WHEN tag_id IS NULL
-            AND cluster_id IS NULL
-            AND embedding_json IS NOT NULL
-            AND embedding_status = 'ready'
+           WHEN fi.tag_id IS NULL
+            AND fi.cluster_id IS NULL
+            AND fi.embedding_json IS NOT NULL
+            AND fi.embedding_status = 'ready'
            THEN 1 ELSE 0 END) AS ungrouped_ready_untagged
-       FROM media_face_instances
-       WHERE library_id = ?`,
+       FROM media_face_instances fi
+       INNER JOIN media_items mi ON mi.id = fi.media_item_id
+       WHERE fi.library_id = ?
+         AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'`,
     )
     .get(libraryId) as {
     ready_untagged: number | null;

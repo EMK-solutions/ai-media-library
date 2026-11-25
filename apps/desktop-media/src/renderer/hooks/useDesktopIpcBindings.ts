@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useDesktopStoreApi } from "../stores/desktop-store";
 import { applyPersistedAppSettingsToStore } from "../lib/apply-persisted-app-settings";
+import { createSettingsEchoGuard } from "../lib/settings-echo-guard";
 import type { GuidedExperienceSettings } from "../../shared/guided-experience-types";
 import {
   bindPhotoAnalysisProgress,
@@ -18,6 +19,8 @@ import {
   refreshFolderAiRollups,
   refreshFolderAnalysisStatuses,
 } from "./ipc-binding-helpers";
+
+const settingsEchoGuard = createSettingsEchoGuard();
 
 export function useDesktopIpcBindings(): void {
   const store = useDesktopStoreApi();
@@ -210,6 +213,7 @@ export function useDesktopSettingsSyncFromMain(): void {
 
   useEffect(() => {
     return window.desktopApi.onSettingsSaved((settings) => {
+      if (!settingsEchoGuard.shouldApplyBroadcast()) return;
       applyPersistedAppSettingsToStore(store, settings);
     });
   }, [store]);
@@ -275,6 +279,8 @@ export function useDesktopSettingsPersistence(): void {
         if (
           !stringArraysEqual(state.libraryRoots, prev.libraryRoots) ||
           state.sidebarCollapsed !== prev.sidebarCollapsed ||
+          JSON.stringify(state.faceDetectionSettings) !==
+            JSON.stringify(prev.faceDetectionSettings) ||
           state.faceDetectionSettings.minConfidenceThreshold !==
             prev.faceDetectionSettings.minConfidenceThreshold ||
           state.faceDetectionSettings.minFaceBoxShortSideRatio !==
@@ -311,8 +317,13 @@ export function useDesktopSettingsPersistence(): void {
             prev.photoAnalysisSettings.downscaleLongestSidePx ||
           state.photoAnalysisSettings.enableTwoPassRotationConsistency !==
             prev.photoAnalysisSettings.enableTwoPassRotationConsistency ||
-          state.photoAnalysisSettings.extractInvoiceData !==
-            prev.photoAnalysisSettings.extractInvoiceData ||
+          state.speechAnalysisSettings.enabled !== prev.speechAnalysisSettings.enabled ||
+          state.speechAnalysisSettings.language !== prev.speechAnalysisSettings.language ||
+          state.speechAnalysisSettings.wordTimestamps !== prev.speechAnalysisSettings.wordTimestamps ||
+          state.speechAnalysisSettings.includeSilenceSpans !== prev.speechAnalysisSettings.includeSilenceSpans ||
+          state.speechAnalysisSettings.silenceMinMs !== prev.speechAnalysisSettings.silenceMinMs ||
+          state.speechAnalysisSettings.fillerDetection !== prev.speechAnalysisSettings.fillerDetection ||
+          state.speechAnalysisSettings.fillerWords !== prev.speechAnalysisSettings.fillerWords ||
           state.photoAnalysisSettings.folderIconWhenPhotoAnalysisPending !==
             prev.photoAnalysisSettings.folderIconWhenPhotoAnalysisPending ||
           state.hideAdvancedSettings !== prev.hideAdvancedSettings ||
@@ -376,6 +387,7 @@ export function useDesktopSettingsPersistence(): void {
           ) ||
           !guidedExperienceSettingsEqual(state.guidedExperienceSettings, prev.guidedExperienceSettings)
         ) {
+          const onSaveFailed = settingsEchoGuard.beginLocalSave();
           void window.desktopApi.saveSettings({
             clientId: state.clientId,
             libraryRoots: state.libraryRoots,
@@ -384,6 +396,7 @@ export function useDesktopSettingsPersistence(): void {
             wrongImageRotationDetection: state.wrongImageRotationDetectionSettings,
             faceDetection: state.faceDetectionSettings,
             photoAnalysis: state.photoAnalysisSettings,
+            speechAnalysis: state.speechAnalysisSettings,
             folderScanning: state.folderScanningSettings,
             smartAlbums: state.smartAlbumSettings,
             aiImageSearch: state.aiImageSearchSettings,
@@ -393,7 +406,7 @@ export function useDesktopSettingsPersistence(): void {
             aiInferencePreferredGpuId: state.aiInferencePreferredGpuId,
             pipelineConcurrency: state.pipelineConcurrencySettings,
             guidedExperience: state.guidedExperienceSettings,
-          });
+          }).catch(onSaveFailed);
         }
       },
     );
@@ -412,7 +425,8 @@ function pipelineConcurrencyChanged(
     next.groupLimits.gpu !== prev.groupLimits.gpu ||
     next.groupLimits.ollama !== prev.groupLimits.ollama ||
     next.groupLimits.cpu !== prev.groupLimits.cpu ||
-    next.groupLimits.io !== prev.groupLimits.io
+    next.groupLimits.io !== prev.groupLimits.io ||
+    next.groupLimits.speech !== prev.groupLimits.speech
   ) {
     return true;
   }

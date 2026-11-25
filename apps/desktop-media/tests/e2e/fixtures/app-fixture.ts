@@ -78,8 +78,16 @@ interface AppOptions {
   e2eGeocoderStub?: boolean;
   /** Pre-seed minimal GeoNames cache files so settings can exercise the local-copy branch. */
   e2eGeocoderCachedData?: boolean;
+  /** Skip the real Whisper download and return a fixed transcript. */
+  e2eSpeechModelStub?: boolean;
+  /** Pre-seed stub speech model files so settings offer Use local copy. */
+  e2eSpeechModelCached?: boolean;
+  /** Per-video delay for the stubbed transcript, so specs can observe running state and cancel. */
+  e2eSpeechStubDelayMs?: number;
   /** Force model download failure path for ensureDetectorModel in test mode. */
   e2eFailFaceModelDownload?: boolean;
+  /** Detect faces in videos without ffmpeg or ONNX. A path containing `no-face-video` stores no faces. */
+  e2eVideoFaceStub?: boolean;
   /**
    * When true (default), sets `EMK_E2E_SKIP_STARTUP_AI_MODELS_DOWNLOAD=1` so main skips
    * bundled startup ONNX/native AI downloads. Set false for specs that need cold ArcFace/core
@@ -110,7 +118,11 @@ export const test = base.extend<AppFixtures & AppOptions>({
   e2eFilenameInAnalysisPrompt: [false, { option: true }],
   e2eGeocoderStub: [false, { option: true }],
   e2eGeocoderCachedData: [false, { option: true }],
+  e2eSpeechModelStub: [false, { option: true }],
+  e2eSpeechModelCached: [false, { option: true }],
+  e2eSpeechStubDelayMs: [0, { option: true }],
   e2eFailFaceModelDownload: [false, { option: true }],
+  e2eVideoFaceStub: [false, { option: true }],
   e2eSkipStartupAiModelsDownload: [true, { option: true }],
   e2eRuntimeRootPath: [undefined, { option: true }],
   e2eAllowAutoProductIntro: [false, { option: true }],
@@ -121,7 +133,11 @@ export const test = base.extend<AppFixtures & AppOptions>({
       e2eFilenameInAnalysisPrompt,
       e2eGeocoderStub,
       e2eGeocoderCachedData,
+      e2eSpeechModelStub,
+      e2eSpeechModelCached,
+      e2eSpeechStubDelayMs,
       e2eFailFaceModelDownload,
+      e2eVideoFaceStub,
       e2eSkipStartupAiModelsDownload,
       e2eRuntimeRootPath,
       e2eAllowAutoProductIntro,
@@ -133,6 +149,14 @@ export const test = base.extend<AppFixtures & AppOptions>({
       e2eRuntimeRootPath ?? fs.mkdtempSync(path.join(os.tmpdir(), "emk-e2e-runtime-"));
     if (e2eRuntimeRootPath) {
       fs.mkdirSync(runtimeRootPath, { recursive: true });
+    }
+    if (e2eSpeechModelCached) {
+      const speechDir = path.join(runtimeRootPath, "ai-models", "speech");
+      fs.mkdirSync(speechDir, { recursive: true });
+      const binaryName = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli";
+      fs.writeFileSync(path.join(speechDir, binaryName), "stub-whisper");
+      fs.writeFileSync(path.join(speechDir, "ggml-large-v3-turbo-q5_0.bin"), "stub-model");
+      fs.writeFileSync(path.join(speechDir, "ggml-silero-v6.2.0.bin"), "stub-vad");
     }
     if (e2eGeocoderCachedData) {
       const citiesDir = path.join(runtimeRootPath, "geonames", "cities1000");
@@ -162,7 +186,10 @@ export const test = base.extend<AppFixtures & AppOptions>({
           : {}),
         ...(e2eFilenameInAnalysisPrompt ? { EMK_E2E_ANALYSIS_APPENDED_BASENAME: "1" } : {}),
         ...(e2eGeocoderStub ? { EMK_E2E_GEOCODER_STUB: "1" } : {}),
+        ...(e2eSpeechModelStub ? { EMK_E2E_SPEECH_MODEL_STUB: "1" } : {}),
+        ...(e2eSpeechStubDelayMs > 0 ? { EMK_E2E_SPEECH_STUB_DELAY_MS: String(e2eSpeechStubDelayMs) } : {}),
         ...(e2eFailFaceModelDownload ? { EMK_E2E_FAIL_FACE_MODEL_DOWNLOAD: "1" } : {}),
+        ...(e2eVideoFaceStub ? { EMK_E2E_VIDEO_FACE_STUB: "1" } : {}),
       },
     });
 

@@ -723,12 +723,15 @@ export function loadUntaggedEmbeddings(libraryId: string): FaceVector[] {
 
   const rows = db
     .prepare(
-      `SELECT id, media_item_id, embedding_json, confidence
-       FROM media_face_instances
-       WHERE library_id = ?
-         AND tag_id IS NULL
-         AND embedding_json IS NOT NULL
-         AND embedding_status = 'ready'`,
+      `SELECT fi.id, fi.media_item_id, fi.embedding_json, fi.confidence
+       FROM media_face_instances fi
+       INNER JOIN media_items mi ON mi.id = fi.media_item_id
+       WHERE fi.library_id = ?
+         AND fi.tag_id IS NULL
+         AND fi.embedding_json IS NOT NULL
+         AND fi.embedding_status = 'ready'
+         AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'`,
     )
     .all(libraryId) as Array<{
     id: string;

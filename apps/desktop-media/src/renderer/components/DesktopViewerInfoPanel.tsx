@@ -12,12 +12,14 @@ import {
   getPeopleBoundingBoxes,
   normalizeMetadata,
   type BeingBoundingBox,
+  type SpeechAnalysisMetadata,
 } from "@emk/media-metadata-core";
 import { getCategoryLabel, getGenderLabel, toHeadlineLabel } from "../lib/label-formatters";
 import { DesktopInfoSection, type DesktopInfoField } from "./DesktopInfoSection";
 import { DesktopViewerInfoRatingRow } from "./DesktopViewerInfoRatingRow";
 import { DesktopFaceTagsTabContent } from "./DesktopFaceTagsTabContent";
 import { DesktopMetadataTree } from "./DesktopMetadataTree";
+import { DesktopSpeechInfoSection } from "./DesktopSpeechInfoSection";
 import type { DesktopViewerInfoPanelProps, DesktopViewerItem } from "../types/viewer-types";
 import type { DateDisplayFormat, DesktopFaceInstance, DesktopMediaItemMetadata } from "../../shared/ipc";
 import { formatPhotoTakenListLabel } from "../lib/photo-date-format";
@@ -169,6 +171,10 @@ function getViewerTopDate(metadata: DesktopMediaItemMetadata, dateFormat: DateDi
     ),
     showPathDateWarning: false,
   };
+}
+
+function normalizedSpeech(aiMetadata: unknown): SpeechAnalysisMetadata | null {
+  return normalizeMetadata(aiMetadata ?? null).speech_analysis ?? null;
 }
 
 function buildInfoSections(metadata: DesktopMediaItemMetadata, dateFormat: DateDisplayFormat): {
@@ -434,6 +440,8 @@ export function DesktopViewerInfoPanel({
   const imageRef = useRef<HTMLImageElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [imageInfo, setImageInfo] = useState<FaceOverlayImageInfo | null>(null);
+  const [fetchedMetadata, setFetchedMetadata] = useState<DesktopMediaItemMetadata | null>(null);
+  const infoMetadata = fetchedMetadata ?? metadata;
 
   const updateImageInfo = useCallback(() => {
     if (!imageRef.current || !imageContainerRef.current) return;
@@ -471,6 +479,17 @@ export function DesktopViewerInfoPanel({
   useEffect(() => {
     setCurrentBoundingBoxes(peopleBoundingBoxes);
   }, [peopleBoundingBoxes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFetchedMetadata(null);
+    void onRefreshMetadata(item.sourcePath).then((next) => {
+      if (!cancelled && next) setFetchedMetadata(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.sourcePath, onRefreshMetadata]);
 
   useEffect(() => {
     if (isVideo) {
@@ -527,8 +546,8 @@ export function DesktopViewerInfoPanel({
     };
   }, [updateImageInfo, item.id, isVideo]);
 
-  const infoSections = metadata ? buildInfoSections(metadata, dateFormat) : null;
-  const topDate = metadata ? getViewerTopDate(metadata, dateFormat) : { dateText: "", showPathDateWarning: false };
+  const infoSections = infoMetadata ? buildInfoSections(infoMetadata, dateFormat) : null;
+  const topDate = infoMetadata ? getViewerTopDate(infoMetadata, dateFormat) : { dateText: "", showPathDateWarning: false };
 
   const { sortedBoxes: sortedFaceOverlayBoxes, displayToOriginal: faceDisplayOrder } = useMemo(
     () => getFaceTagsSortedBoxesAndOrder(currentBoundingBoxes),
@@ -596,11 +615,11 @@ export function DesktopViewerInfoPanel({
         {
           id: "info",
           label: "Info",
-          content: metadata ? (
+          content: infoMetadata ? (
             <div className="grid gap-3">
               <DesktopViewerInfoRatingRow
                 sourcePath={item.sourcePath}
-                starRating={metadata.starRating}
+                starRating={infoMetadata.starRating}
                 leftContent={
                   topDate.dateText ? (
                     <span className="text-base font-semibold text-foreground">{topDate.dateText}</span>
@@ -615,9 +634,9 @@ export function DesktopViewerInfoPanel({
                   ) : null
                 }
               />
-              <h3 className="mb-1 text-lg text-foreground">{primaryInfoHeadline(item, metadata)}</h3>
+              <h3 className="mb-1 text-lg text-foreground">{primaryInfoHeadline(item, infoMetadata)}</h3>
               {(() => {
-                const locLine = formatCatalogLocationLine(metadata);
+                const locLine = formatCatalogLocationLine(infoMetadata);
                 if (!locLine) return null;
                 return (
                   <p className="m-0 text-sm text-muted-foreground">
@@ -637,6 +656,7 @@ export function DesktopViewerInfoPanel({
                   emptyStateMessage="No video-specific metadata available."
                 />
               ) : null}
+              {isVideo ? <DesktopSpeechInfoSection speech={normalizedSpeech(infoMetadata.aiMetadata)} /> : null}
               <DesktopInfoSection
                 title={isVideo ? "Capture data" : "Image capture data"}
                 fields={infoSections?.captureDataFields ?? []}
@@ -712,8 +732,8 @@ export function DesktopViewerInfoPanel({
           content: (
             <div className="grid gap-3">
               <h3 className="mb-3.5 text-lg text-foreground">Metadata</h3>
-              {metadata ? (
-                <DesktopMetadataTree data={metadata.aiMetadata ?? metadata} />
+              {infoMetadata ? (
+                <DesktopMetadataTree data={infoMetadata.aiMetadata ?? infoMetadata} />
               ) : (
                 <p className="m-0 text-muted-foreground">No metadata available</p>
               )}

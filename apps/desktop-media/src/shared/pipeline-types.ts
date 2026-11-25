@@ -14,7 +14,7 @@
  * Concurrency groups used to throttle pipelines that compete for the same
  * underlying resource (GPU, Ollama, CPU, IO).
  */
-export type PipelineConcurrencyGroup = "gpu" | "ollama" | "cpu" | "io";
+export type PipelineConcurrencyGroup = "gpu" | "ollama" | "cpu" | "io" | "speech";
 
 /**
  * Identifier for a pipeline kind. Defined as a string-literal union so the
@@ -37,7 +37,9 @@ export type PipelineId =
   | "path-llm-analysis"
   | "similar-untagged-counts"
   | "folder-duplicate-scan"
-  | "duplicate-marked-files-delete";
+  | "duplicate-marked-files-delete"
+  | "speech-model-init"
+  | "video-speech-to-text";
 
 /**
  * Lifecycle state of a single job inside a bundle.
@@ -131,7 +133,7 @@ export interface PipelineConcurrencyConfig {
 
 /** Default group limits, applied when settings are missing or malformed. */
 export const DEFAULT_PIPELINE_CONCURRENCY: PipelineConcurrencyConfig = {
-  groupLimits: { gpu: 1, ollama: 1, cpu: 2, io: 2 },
+  groupLimits: { gpu: 1, ollama: 1, cpu: 2, io: 2, speech: 1 },
   perPipelineGroupOverride: undefined,
 };
 

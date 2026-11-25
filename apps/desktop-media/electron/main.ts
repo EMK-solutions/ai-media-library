@@ -27,6 +27,7 @@ import { registerFolderAiSummaryHandlers } from "./ipc/folder-ai-summary-handler
 import { registerMediaItemMutationHandlers } from "./ipc/media-item-mutation-handlers";
 import { registerRotationReviewHandlers } from "./ipc/rotation-review-handlers";
 import { registerGeocoderHandlers } from "./ipc/geocoder-handlers";
+import { registerSpeechHandlers } from "./ipc/speech-handlers";
 import { registerAlbumHandlers } from "./ipc/album-handlers";
 import { registerDocumentsHandlers } from "./ipc/documents-handlers";
 import { registerPipelineOrchestrationHandlers } from "./ipc/pipeline-orchestration-handlers";
@@ -90,6 +91,7 @@ function registerAllIpcHandlers(): void {
   registerMediaItemMutationHandlers();
   registerRotationReviewHandlers();
   registerGeocoderHandlers();
+  registerSpeechHandlers();
   registerAlbumHandlers();
   registerDocumentsHandlers();
   registerFolderDuplicateScanHandlers();

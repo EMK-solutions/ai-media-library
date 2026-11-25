@@ -18,12 +18,14 @@ function PlayButton({
   title,
   tone,
   disabled,
+  disabledTitle,
   queueStatus,
   onClick,
 }: {
   title: string;
   tone: SummaryStatusTone;
   disabled?: boolean;
+  disabledTitle?: string;
   queueStatus?: FolderAiPipelineQueueStatus;
   onClick: () => void;
 }): ReactElement {
@@ -42,7 +44,15 @@ function PlayButton({
         "inline-flex h-10 w-10 shrink-0 appearance-none items-center justify-center border-0 bg-transparent p-0 shadow-none outline-none ring-0 transition-transform duration-150 ease-out hover:scale-125 disabled:cursor-not-allowed disabled:opacity-50",
         color,
       )}
-      title={queueStatus === "running" ? `${title} is running` : queueStatus === "queued" ? `${title} is waiting in queue` : "Run"}
+      title={
+        disabled && disabledTitle
+          ? disabledTitle
+          : queueStatus === "running"
+            ? `${title} is running`
+            : queueStatus === "queued"
+              ? `${title} is waiting in queue`
+              : "Run"
+      }
       aria-label={queueStatus === "running" ? `${title} is running` : queueStatus === "queued" ? `${title} is waiting in queue` : `Run ${title}`}
       disabled={disabled}
       onClick={onClick}
@@ -67,6 +77,8 @@ export function SummaryPipelineCard({
   actionPending = false,
   queueStatus = null,
   onRunPipeline,
+  playDisabled = false,
+  playDisabledTitle,
   completedLabel,
   issueLabel,
   extraItems,
@@ -82,6 +94,8 @@ export function SummaryPipelineCard({
   actionPending?: boolean;
   queueStatus?: FolderAiPipelineQueueStatus;
   onRunPipeline?: (pipeline: SummaryPipelineKind) => void;
+  playDisabled?: boolean;
+  playDisabledTitle?: string;
   completedLabel?: string;
   issueLabel?: string;
   extraItems?: SummaryMetricGridItem[];
@@ -95,7 +109,8 @@ export function SummaryPipelineCard({
     <PlayButton
       title={title}
       tone={tone}
-      disabled={actionPending || queueStatus !== null}
+      disabled={playDisabled || actionPending || queueStatus !== null}
+      disabledTitle={playDisabledTitle}
       queueStatus={actionPending ? "running" : queueStatus}
       onClick={() => onRunPipeline(actionPipeline)}
     />

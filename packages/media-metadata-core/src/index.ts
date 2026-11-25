@@ -1,4 +1,5 @@
 export * from "./media-metadata";
+export * from "./speech-analysis";
 export * from "./person-age";
 export * from "./accessors";
 export * from "./thumbnail-quick-filters";

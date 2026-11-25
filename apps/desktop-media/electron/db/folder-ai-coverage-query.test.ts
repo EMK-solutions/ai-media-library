@@ -14,10 +14,13 @@ let nextRow = {
   semantic_failed: 0,
 };
 
+const speechRow = { total: 2, speech_done: 1, speech_failed: 1 };
+
 const mockDb = {
   prepare: (sql: string) => ({
     get: (...args: unknown[]) => {
       getCalls.push({ sql, args });
+      if (sql.includes("speech_analysis_processed_at")) return speechRow;
       return nextRow;
     },
   }),
@@ -173,5 +176,46 @@ describe("getFolderAiCoverage", () => {
     });
     expect(getCalls[0]?.sql).toContain("mi.face_detection_failed_at >= mi.face_detection_processed_at");
     expect(getCalls[0]?.sql).toContain("mi.face_detection_processed_at > mi.face_detection_failed_at");
+  });
+
+  it("adds video files to the face-detection denominator when includeVideosInFaceCoverage is on", () => {
+    const coverage = getFolderAiCoverage({
+      folderPath: "C:\\photos",
+      recursive: true,
+      includeVideosInFaceCoverage: true,
+    });
+
+    expect(getCalls).toHaveLength(3);
+    const videoCall = getCalls.find((call) => call.sql.includes("face_detection_processed_at") && call.sql.includes("mi.media_kind = 'video'"));
+    expect(videoCall?.sql).toContain("mi.media_kind = 'video'");
+    expect(coverage.face.totalImages).toBe(10);
+    expect(coverage.face.doneCount).toBe(6);
+    expect(coverage.photo.totalImages).toBe(5);
+  });
+
+  it("counts speech coverage from videos only", () => {
+    const coverage = getFolderAiCoverage({ folderPath: "C:\\photos", recursive: true });
+    const speechCall = getCalls.find((call) => call.sql.includes("speech_analysis_processed_at"));
+    expect(speechCall?.sql).toContain("mi.media_kind = 'video'");
+    expect(speechCall?.sql).not.toContain("mi.mime_type LIKE 'image/%'");
+    expect(coverage.speech).toEqual({
+      doneCount: 1,
+      failedCount: 1,
+      totalImages: 2,
+      label: "done",
+    });
+  });
+
+  it("labels a pipeline not_done when every attempted file failed", () => {
+    speechRow.speech_done = 0;
+    speechRow.speech_failed = 2;
+    try {
+      const coverage = getFolderAiCoverage({ folderPath: "C:\\photos", recursive: true });
+      expect(coverage.speech.label).toBe("not_done");
+      expect(coverage.speech.failedCount).toBe(2);
+    } finally {
+      speechRow.speech_done = 1;
+      speechRow.speech_failed = 1;
+    }
   });
 });

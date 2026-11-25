@@ -1,4 +1,4 @@
-import { Brain, Image as ImageIcon, RotateCw, Search, Users, Video } from "lucide-react";
+import { AudioLines, Brain, Image as ImageIcon, RotateCw, Search, Users, Video } from "lucide-react";
 import type { ReactElement } from "react";
 import type { FolderAiCoverageReport, FolderAiSummaryOverview, ScanFolderMetadataScope } from "../../../shared/ipc";
 import { formatCoveragePercent, formatGroupedInt } from "../../lib/folder-ai-summary-formatters";
@@ -14,6 +14,7 @@ import { SummaryGeoLocationCard } from "./SummaryGeoLocationCard";
 import type { SummaryMetricGridItem } from "./SummaryMetricGrid";
 import { SummaryPipelineCard } from "./SummaryPipelineCard";
 import { SummarySettingsCheckbox } from "./SummarySettingsCheckbox";
+import { useSpeechModelReady } from "../../hooks/use-speech-model-ready";
 import { pendingGeoCoverage, pendingOverview, pendingPipeline } from "./summary-card-formatters";
 
 const pendingCoverage: FolderAiCoverageReport = {
@@ -24,6 +25,7 @@ const pendingCoverage: FolderAiCoverageReport = {
   face: pendingPipeline,
   semantic: pendingPipeline,
   rotation: pendingPipeline,
+  speech: pendingPipeline,
   geo: {
     images: pendingGeoCoverage,
     videos: pendingGeoCoverage,
@@ -43,6 +45,7 @@ export interface FolderAiSummaryDashboardCardVisibility {
   face: boolean;
   photo: boolean;
   rotation: boolean;
+  speech: boolean;
   geoLocation: boolean;
 }
 
@@ -54,6 +57,7 @@ export const DEFAULT_FOLDER_AI_SUMMARY_CARD_VISIBILITY: FolderAiSummaryDashboard
   face: true,
   photo: true,
   rotation: true,
+  speech: true,
   geoLocation: true,
 };
 
@@ -108,6 +112,7 @@ export function DesktopFolderAiSummaryDashboard({
   const dateFormat = useDesktopStore((state) => state.mediaViewerSettings.dateFormat);
   const pipelineRunning = useDesktopStore((state) => state.pipelineRunning);
   const pipelineQueued = useDesktopStore((state) => state.pipelineQueued);
+  const speechModelReady = useSpeechModelReady();
   const visible = { ...DEFAULT_FOLDER_AI_SUMMARY_CARD_VISIBILITY, ...cardVisibility };
   const faceExtraItems: SummaryMetricGridItem[] =
     coverage.face.label === "not_done"
@@ -123,6 +128,7 @@ export function DesktopFolderAiSummaryDashboard({
           },
         ];
   const showImagePipelineSection = visible.semantic || visible.face || visible.photo || visible.rotation;
+  const speechCoverage = coverage.speech ?? pendingPipeline;
   const showFileScanMetadataSection = visible.lastDataScan || visible.geoLocation;
   const queueStatusFor = (pipeline: SummaryPipelineKind) =>
     getFolderAiPipelineQueueStatus({
@@ -252,6 +258,27 @@ export function DesktopFolderAiSummaryDashboard({
                 viewTitle={UI_TEXT.folderAiSummaryRotationReviewOpen}
               />
             ) : null}
+          </SummaryCardGroup>
+        </section>
+      ) : null}
+
+      {visible.speech ? (
+        <section className="flex flex-col gap-3">
+          <h3 className="m-0 text-sm font-semibold text-muted-foreground">Videos</h3>
+          <SummaryCardGroup>
+            <SummaryPipelineCard
+              icon={AudioLines}
+              title="Video speech to text"
+              pipeline={speechCoverage}
+              actionPipeline="speech"
+              loading={coverageLoading}
+              actionPending={actionPendingPipeline === "speech"}
+              queueStatus={queueStatusFor("speech")}
+              onRunPipeline={onRunPipeline}
+              playDisabled={!speechModelReady}
+              playDisabledTitle="Turn on Video speech to text in Settings and wait until the model download finishes"
+              completedLabel="Transcribed"
+            />
           </SummaryCardGroup>
         </section>
       ) : null}

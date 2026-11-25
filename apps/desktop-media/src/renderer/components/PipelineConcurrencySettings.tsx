@@ -84,12 +84,21 @@ export function PipelineConcurrencySettings({
         />
         <SettingsNumberField
           title="I/O group limit"
-          description={`Pipelines: metadata-scan, gps-geocode, geocoder-init (default ${DEFAULT_PIPELINE_CONCURRENCY.groupLimits.io}).`}
+          description={`Pipelines: metadata-scan, gps-geocode, geocoder-init, speech-model-init (default ${DEFAULT_PIPELINE_CONCURRENCY.groupLimits.io}).`}
           value={config.groupLimits.io}
           min={1}
           max={8}
           step={1}
           onChange={(value) => setLimit("io", value)}
+        />
+        <SettingsNumberField
+          title="Speech group limit"
+          description={`Pipelines: video-speech-to-text (default ${DEFAULT_PIPELINE_CONCURRENCY.groupLimits.speech}). Keep this at 1 so only one transcription runs at a time.`}
+          value={config.groupLimits.speech}
+          min={1}
+          max={2}
+          step={1}
+          onChange={(value) => setLimit("speech", value)}
         />
       </div>
     </SettingsSectionCard>

@@ -20,6 +20,7 @@ function minimalCoverage(overrides: Partial<FolderAiCoverageReport> = {}): Folde
     face: emptyPipeline,
     semantic: emptyPipeline,
     rotation: emptyPipeline,
+    speech: emptyPipeline,
     geo: {
       images: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },
       videos: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },

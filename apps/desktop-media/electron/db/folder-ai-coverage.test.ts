@@ -18,6 +18,7 @@ function report(partial: Partial<FolderAiCoverageReport> & Pick<FolderAiCoverage
     face: partial.face ?? done(t),
     semantic: partial.semantic ?? done(t),
     rotation: partial.rotation ?? done(t),
+    speech: partial.speech ?? { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
     geo: partial.geo ?? {
       images: { total: t, withGpsCount: 0, withoutGpsCount: t, locationDetailsDoneCount: 0 },
       videos: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },
@@ -35,10 +36,27 @@ function report(partial: Partial<FolderAiCoverageReport> & Pick<FolderAiCoverage
 }
 
 describe("folderCoverageToSidebarRollup", () => {
+  it("returns not_done for a video-only folder whose faces are still pending", () => {
+    const r = report({
+      totalImages: 0,
+      photo: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
+      face: { doneCount: 0, failedCount: 0, totalImages: 4, label: "not_done" },
+      semantic: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
+    });
+    expect(folderCoverageToSidebarRollup(r)).toBe("not_done");
+  });
+
   it("returns empty when there are no images", () => {
-    expect(folderCoverageToSidebarRollup(report({ totalImages: 0, photo: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" }, face: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" }, semantic: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" } }))).toBe(
-      "empty",
-    );
+    expect(
+      folderCoverageToSidebarRollup(
+        report({
+          totalImages: 0,
+          photo: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
+          face: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
+          semantic: { doneCount: 0, failedCount: 0, totalImages: 0, label: "empty" },
+        }),
+      ),
+    ).toBe("empty");
   });
 
   it("returns all_done when every pipeline is done", () => {

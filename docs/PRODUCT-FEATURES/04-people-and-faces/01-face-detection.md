@@ -3,10 +3,11 @@ id: F-04-01
 module: 04-people-and-faces
 title: Face detection
 status: shipped
-last_reviewed: 2026-08-26
+last_reviewed: 2026-08-29
 source_of_truth:
   - apps/desktop-media/electron/native-face/
   - apps/desktop-media/electron/pipelines/definitions/face-detection.ts
+  - apps/desktop-media/electron/video-face/
   - apps/desktop-media/electron/ipc/face-detection-handlers.ts
   - apps/desktop-media/electron/db/media-analysis.ts
   - apps/desktop-media/src/shared/ipc.ts
@@ -21,12 +22,15 @@ related:
 
 ## 1. Summary
 
-Face detection is the first step of the People workflow and the only one that touches every image.
+Face detection is the first step of the People workflow and the only one that touches every
+image — and, when enabled, every video — in a folder.
 The user starts it per folder, and the app opens each photo, finds the faces in it, and stores one
 record per face with its position, its confidence, whether it looks like a subject of the photo or
 an incidental bystander, and — with the shipped defaults — refined eye/nose/mouth landmarks plus an
-estimated age and gender. The same job also prepares each face for recognition, so the user never
-has to start a second pipeline before naming people.
+estimated age and gender. Video files are sampled on a timeline (default one frame per second),
+faces are tracked across samples, and one or two representative faces per track are stored the same
+way as photo faces so person *suggestions* can include those clips. The same job also prepares each
+face for recognition, so the user never has to start a second pipeline before naming people.
 
 Everything runs locally and inside the app process: the models are ONNX files downloaded once from
 public model hosts into the app's model folder, and no image data leaves the machine. Detection is
@@ -37,6 +41,8 @@ work, can include sub-folders, can re-run only what is missing, and can cancel a
 
 - **As someone with a folder of family photos** I want the app to find all the faces in it,
   **so that** I can start naming people instead of hunting through images.
+- **As someone with holiday clips in the same folder** I want those videos included in the same
+  detection run, **so that** people search can find the clips when unconfirmed similar faces are on.
 - **As someone re-running detection after changing a setting** I want the faces I already named to
   survive, **so that** improving detection does not undo my tagging work.
 - **As someone with a large archive** I want to run detection folder by folder and cancel it,
@@ -86,6 +92,7 @@ This feature is not where faces get names. Naming is
 | F-04-01.6 | Age & gender estimation | An approximate age and gender per face, optionally shown in the viewer | shipped |
 | F-04-01.7 | Single-image detection | **Detect faces - local** re-runs detection for the open photo | shipped |
 | F-04-01.8 | Recognition hand-off | Each detected face is prepared for recognition inside the same job | shipped |
+| F-04-01.9 | Video sampling | When **Detect faces in video files** is on, the same job samples clips, tracks faces, and stores representative faces | shipped |
 
 ## 5. User journeys
 
@@ -96,27 +103,34 @@ This feature is not where faces get names. Naming is
 is present or can be downloaded.
 
 1. The user ticks **Include sub-folders** if the tree is nested, leaves **Override existing**
-   unticked to process only images not yet detected, and presses play.
+   unticked to process only files not yet detected, and presses play.
 2. If the selected model is not on disk, it is downloaded first and the progress appears in
    Background operations.
-3. The job reports progress per image in the **Local face detection** panel of the progress dock,
-   counting faces as it goes.
+3. The job reports progress in Background operations: pending **images first**, then **videos**.
+   Photo-only runs show image counts; mixed runs also show video counts. The dock does not show a
+   raw face-instance total (video tracks would inflate it).
 4. Each image is checked for wrong rotation first; when a correction angle is known, detection runs
-   on a corrected copy and the face boxes are mapped back onto the original.
-5. Faces are stored for the image, and every face with a usable crop is immediately prepared for
-   recognition.
-6. When the run ends, the app rebuilds the suggested matches for every person, so the People
-   screens are up to date without further action.
+   on a corrected copy and the face boxes are mapped back onto the original. Videos skip that
+   pre-check (ffmpeg already applies the display matrix).
+5. Faces are stored for each image. For each video, sampled frames are detected, associated into
+   tracks, and one or two representative faces per track are stored. Every stored face with a usable
+   crop is immediately prepared for recognition.
+6. When the run ends, the app rebuilds the suggested matches for every person, so People screens and
+   person search (including videos, when unconfirmed is on) are up to date without further action.
 
-**Outcome:** the folder's faces are recorded and ready to be named.
+**Outcome:** the folder's faces are recorded and ready to be named. Video representative faces are
+kept off the People grids in v1; they still feed person suggestions.
 
 **Alternate paths**
 
-- **Override existing** ticked → every image is processed again, including ones already detected.
-- The user presses cancel → the current image finishes, the remainder is reported as cancelled, and
-  already-processed images keep their faces.
+- **Override existing** ticked → every image and (when the setting is on) every video is processed
+  again, including ones already detected.
+- **Detect faces in video files** off → the job behaves as images-only.
+- The user presses cancel → the current file finishes, the remainder is reported as cancelled, and
+  already-processed files keep their faces.
 - Faces exist whose recognition data is missing from an earlier interrupted run → a catch-up pass
-  at the end of the job prepares them.
+  at the end of the job prepares **image** faces (video representatives are embedded when the clip
+  is processed).
 
 **Failure paths**
 
@@ -196,19 +210,23 @@ faces or a missing one.
 | BR-3 | A face counts as a **main subject** only when its short side is at least 0.5 of the largest face in the photo *and* its box covers at least 0.01 of the image area. | Keeps "images with two people" style filters from counting bystanders in a crowd. | `apps/desktop-media/electron/native-face/subject-role.ts` |
 | BR-4 | When detection runs again on an image, an existing tagged face is kept if a new detection overlaps it by at least **Preserve person tags on re-detection: min IoU** (default 0.5). | The user's naming work must outlive a re-run. | `apps/desktop-media/electron/db/media-analysis.ts` |
 | BR-5 | When no new detection overlaps a tagged face, it is still kept as long as **Keep tagged faces even when the new detector misses them** is on (default on). | A detector change must not make named people disappear. | `apps/desktop-media/electron/db/media-analysis.ts` |
-| BR-6 | In **only if missing** mode, images already carrying a detection result are skipped; in **Override existing** mode every image is processed. | Repeat runs after adding files stay cheap. | `apps/desktop-media/electron/pipelines/definitions/face-detection.ts` |
-| BR-7 | Wrong-rotation detection runs before detection on each image; when a correction angle is known, faces are detected on a rotated copy and the boxes are converted back to the original image's coordinates. | Sideways photos otherwise yield no faces at all. | `apps/desktop-media/electron/ipc/face-detection-handlers.ts` |
+| BR-6 | In **only if missing** mode, files already carrying a detection result are skipped; in **Override existing** mode every image (and, when enabled, every video) is processed. | Repeat runs after adding files stay cheap. | `apps/desktop-media/electron/pipelines/definitions/face-detection.ts` |
+| BR-7 | Wrong-rotation detection runs before detection on each image; when a correction angle is known, faces are detected on a rotated copy and the boxes are converted back to the original image's coordinates. Videos skip this pre-check. | Sideways photos otherwise yield no faces at all. | `apps/desktop-media/electron/ipc/face-detection-handlers.ts` |
 | BR-8 | Detection is single-pass: the app does not try extra quarter-turns when a photo yields no faces. | Predictable, bounded time per image. | `apps/desktop-media/electron/ipc/face-detection-handlers.ts` |
 | BR-9 | An image that fails is recorded with its error and does not stop the run; a later run can be told to skip files that failed before. | One corrupt file must not cost a whole folder. | `apps/desktop-media/electron/pipelines/definitions/face-detection.ts` |
 | BR-10 | Every face detected in the run is prepared for recognition in the same job, and any face left without recognition data is caught up at the end of the run. | The user should never have to know a second step exists. | `apps/desktop-media/electron/pipelines/definitions/face-detection.ts` |
 | BR-11 | When the run has prepared at least one face, the suggested matches for all people are rebuilt before the job reports completion. | New photos of known people appear as proposals without a manual refresh. | `apps/desktop-media/electron/face-embedding-suggestions-sync.ts` |
 | BR-12 | Detection runs in the shared GPU concurrency group, so it does not run at the same time as the other model-heavy pipelines. | Avoids starving image analysis and search indexing of the same device. | `apps/desktop-media/electron/pipelines/definitions/face-detection.ts` |
+| BR-13 | When **Detect faces in video files** is on, the job samples each clip on a time interval (default 1.0 s), skips about 0.3 s at the start, and caps at 600 samples per file (longer clips are subsampled uniformly). | Every-frame detection would be too slow; fps-based stepping would treat 24 fps and 60 fps clips differently. | `apps/desktop-media/electron/video-face/` |
+| BR-14 | Representative faces stored from videos are excluded from People grouping, Tagged/Untagged grids, and similar-face counts. They still write person suggestions. | Video reps would flood Untagged faces; search uses the suggestion table. | `apps/desktop-media/electron/db/face-embeddings.ts`, `face-tags.ts` |
 
 ## 8. Settings & defaults
 
 | Setting (UI label) | Default | Effect | Advanced? |
 |---|---|---|---|
 | Face detection model | YOLOv12 Large (~102 MB) | Which local detector is used. Options: RetinaFace (MobileNetV2) ~7 MB, YOLOv12 Nano ~11 MB, YOLOv12 Small ~38 MB, YOLOv12 Medium ~79 MB, YOLOv12 Large ~102 MB | Yes |
+| Detect faces in video files | On | Include video files in the same face-detection job (BR-13) | Yes |
+| Video face sample interval (seconds) | 1 | Time between sampled frames on a clip; enabled only when videos are included (BR-13) | Yes |
 | Keep tagged faces even when the new detector misses them | On | Named faces survive a detector change (BR-5) | Yes |
 | Face age & gender estimation | On, model "Age + Gender (ViT)" (~90 MB) | Stores an approximate age and gender per face | Yes |
 | Show AI age and gender in Face tags panel | Off | Adds a line such as "AI age: 45, Male (67%)" to each face card in the viewer | Yes |
@@ -232,8 +250,9 @@ switched off in code, and the orientation classifier "Deep Image Orientation (Ef
 
 | Data | Where | User-visible meaning |
 |---|---|---|
-| One record per detected face: box, confidence, subject role, landmarks, age and gender estimates | `media_face_instances` | The boxes in the viewer, the cards in the People screens; survives restart |
-| Whether an image has been face-detected, and any failure message | The image's catalog row | Drives "only if missing" runs and the folder analysis dashboard |
+| One record per detected face: box, confidence, subject role, landmarks, age and gender estimates | `media_face_instances` | The boxes in the viewer, the cards in the People screens; survives restart. Video rows also store `face_track_id`. |
+| Per-video face tracks and compact sample boxes | `media_face_tracks`, `media_face_track_samples` | Timeline of a tracked face in a clip (for later seek-in-viewer); not shown in v1 People UI |
+| Whether an image **or video** has been face-detected, and any failure message | The catalog row (`face_detection_processed_at` / `face_detection_failed_at`) | Drives "only if missing" runs and the folder analysis dashboard |
 | Detected orientation used for the run | The image's orientation state | Explains why boxes line up on a rotated original |
 | A per-face visual signature | `media_face_instances` | Makes the face comparable to people — see [Face recognition](02-face-recognition.md) |
 | Downloaded ONNX model files | The app's model folder | Downloaded once; deleting them forces a re-download on the next run |
@@ -287,6 +306,8 @@ folder menu uses.
 | Unit | `apps/desktop-media/electron/native-face/landmark-refiner.test.ts`, `age-gender-estimator.test.ts`, `affine-warp.test.ts`, `image-utils.test.ts`, `model-manager.test.ts`, `onnx-provider-policy.test.ts` | The auxiliary per-face steps, model files, and execution provider selection |
 | Unit | `apps/desktop-media/electron/db/face-bbox-reference-dimensions.test.ts` | Face boxes staying correct against the image they were measured on |
 | Unit | `packages/shared-contracts/src/face-detection/bounding-box.test.ts`, `iou.test.ts`, `rotation-heuristics.test.ts` | Box normalisation, overlap maths and orientation estimates from landmarks |
+| Unit | `apps/desktop-media/electron/video-face/*.test.ts` | Video sample timestamps, track association, representative-face scoring |
+| Unit | `apps/desktop-media/electron/pipelines/definitions/face-detection-collect.test.ts` | Images collected before videos; videos skipped when the setting is off |
 | Integration | `apps/desktop-media/electron/native-face/native-face-detection.integration.test.ts`, `native-face-real-image.integration.test.ts`, `native-face-gpu.machine.integration.test.ts` | End-to-end detection against real models and images |
 
 **Coverage gaps:** the detection E2E specs skip unless local sample photos are present, so CI
@@ -306,6 +327,8 @@ proves the wiring rather than detection quality. Tag-preserving re-detection (BR
   refinement is on by default, so a user cannot turn it off from the UI.
 - **Limitation:** detection is per-folder and manual; adding files to a folder does not schedule
   detection for them.
+- **Limitation:** video faces in v1 have no Face tags tab, People-grid cards, or overlay on
+  playback. Representative faces are stored so that UI can land later without reprocessing.
 - **Open question:** whether the extra orientation retry passes, which exist in code but are
   switched off for every caller, should ever be exposed as a "try harder on photos with no faces"
   option.
@@ -317,4 +340,5 @@ proves the wiring rather than detection quality. Tag-preserving re-detection (BR
 - [Face tagging & suggestions](06-face-tagging-and-suggestions.md) — naming faces
 - Recommended setup order: [`../JOURNEYS.md`](../JOURNEYS.md) J-X1, step 4
 - Implementation history: `docs/IMPLEMENTATION-LOG/features/2026-03_face_detection_ux_improvements_*.plan.md`,
-  `docs/IMPLEMENTATION-LOG/features/2026-03_face_orientation_metadata_*.plan.md`
+  `docs/IMPLEMENTATION-LOG/features/2026-03_face_orientation_metadata_*.plan.md`,
+  `docs/IMPLEMENTATION-LOG/features/2026-08_video_face_detection.md`

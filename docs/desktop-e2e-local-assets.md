@@ -9,6 +9,10 @@ Related fixture folders:
 - `apps/desktop-media/test-assets/e2e-media-mixed/`
 - `apps/desktop-media/test-assets/rotation-crop/`
 
+Speech-to-text clips live in `apps/desktop-media/test-assets/e2e-speech-videos/`. That folder is gitignored, including `expectations.json`. CI does not use it. The local Playwright config `playwright.real-speech.config.ts` (`pnpm --filter @emk/desktop-media test:e2e-real-speech`) skips when the folder or a named clip is missing. Optional override: `EMK_E2E_SPEECH_VIDEOS_DIR`. `media-2.mp4` under `e2e-media-mixed/` is a player fixture, not a speech sample.
+
+`playwright.real-video-face.config.ts` (`pnpm --filter @emk/desktop-media test:e2e-real-video-face`) uses only the first two of those clips and expects one visible person in each: `Human role in AI-driven world v01.mp4` and `Игорь - с 50летием.mp4`. `No-to-war-in-Ukraine.mp4` is not part of the face test. The spec skips when either clip is missing, and it is not in the CI smoke list. It reuses the app's installed face models when `APPDATA\AI Media Library` is present (`EMK_E2E_REAL_FACE_RUNTIME_ROOT` overrides that).
+
 These fixtures are now tracked in the repository so CI can run E2E suites consistently.
 
 ## Optional override

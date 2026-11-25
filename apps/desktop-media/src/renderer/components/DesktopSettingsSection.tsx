@@ -160,6 +160,29 @@ const UI_TEXT = {
   faceDetection: "Face detection",
   faceRecognition: "Face recognition",
   photoAnalysis: "AI image analysis",
+  speechToText: "Video speech to text",
+  speechToTextEnableTitle: "Enable video speech to text",
+  speechToTextEnableDescription:
+    "Turns on local speech transcription for videos. The first time you enable this, the app downloads Whisper large-v3-turbo (about 600 MB) and shows progress in Background operations.",
+  speechLanguage: "Speech language",
+  speechLanguageDescription:
+    "Transcribes in the spoken language. Use auto to detect it. Or set a language code such as en, fr, or ru to force that language. This does not translate.",
+  speechToTextConfirmTitle: "Download speech model?",
+  speechToTextConfirmMessage:
+    "This will download approximately 600 MB: the whisper.cpp program, the Whisper large-v3-turbo model, and a small voice-activity model. The download runs in the background and stays on this device.",
+  speechToTextLocalCopyTitle: "Use local speech model?",
+  speechToTextLocalCopyMessage:
+    "Whisper is already present on this device. You can use the local copy now, or download it again.",
+  speechWordTimestamps: "Store word timestamps",
+  speechWordTimestampsDescription: "Save a start and end time for each word. Leave this off for long videos.",
+  speechSilence: "Store silence spans",
+  speechSilenceDescription: "Save gaps between speech that are at least the minimum silence length.",
+  speechSilenceMin: "Minimum silence (ms)",
+  speechSilenceMinDescription: "Shortest gap, in milliseconds, stored as silence.",
+  speechFiller: "Detect filler words",
+  speechFillerDescription: "Mark words from the filler list, such as um, uh, and you know.",
+  speechFillerWords: "Filler words",
+  speechFillerWordsDescription: "Comma-separated words and phrases. Matching is case-insensitive.",
   wrongImageRotationDetection: "Wrong image rotation detection",
   aiImageSearch: "AI image search",
   aiImageSearchTranslationModelTitle: "AI model to translate search prompt to English",
@@ -317,6 +340,10 @@ export function DesktopSettingsSection({
   const setProductWelcomePreviewOpen = useDesktopStore((s) => s.setProductWelcomePreviewOpen);
   const [showGpsConfirm, setShowGpsConfirm] = useState(false);
   const [gpsConfirmHasLocalCopy, setGpsConfirmHasLocalCopy] = useState(false);
+  const speechSettings = useDesktopStore((state) => state.speechAnalysisSettings);
+  const updateSpeechSetting = useDesktopStore((state) => state.updateSpeechAnalysisSetting);
+  const [showSpeechConfirm, setShowSpeechConfirm] = useState(false);
+  const [speechConfirmHasLocalCopy, setSpeechConfirmHasLocalCopy] = useState(false);
   const [showWindowsGpuGuide, setShowWindowsGpuGuide] = useState(false);
   const [showAiModelHelp, setShowAiModelHelp] = useState(false);
   const [modelsReferenceOpen, setModelsReferenceOpen] = useState(false);
@@ -447,6 +474,34 @@ export function DesktopSettingsSection({
 
   const cancelGpsEnable = (): void => {
     setShowGpsConfirm(false);
+  };
+
+  const handleSpeechToggle = (next: boolean): void => {
+    if (next && !speechSettings.enabled) {
+      setSpeechConfirmHasLocalCopy(false);
+      setShowSpeechConfirm(true);
+      void window.desktopApi.getSpeechModelCacheStatus().then((status) => {
+        setSpeechConfirmHasLocalCopy(status.hasLocalCopy);
+      }).catch(() => {
+        setSpeechConfirmHasLocalCopy(false);
+      });
+      return;
+    }
+    setShowSpeechConfirm(false);
+    updateSpeechSetting("enabled", next);
+  };
+
+  const confirmSpeechDownload = (forceRefresh: boolean): void => {
+    setShowSpeechConfirm(false);
+    updateSpeechSetting("enabled", true);
+    void window.desktopApi.pipelines.enqueueBundle({
+      kind: "single-job",
+      payload: {
+        pipelineId: "speech-model-init",
+        displayName: "Video speech model",
+        params: { forceRefresh },
+      },
+    });
   };
 
   const ensureOrientationModel = (): void => {
@@ -1290,6 +1345,27 @@ export function DesktopSettingsSection({
             </div>
           </div>
           <SettingsCheckboxField
+            title="Detect faces in video files"
+            description="After photos in a folder, the same job samples video files and looks for faces. Turn off to skip videos (faster on folders with long clips)."
+            checked={faceDetectionSettings.detectFacesInVideoFiles}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            onChange={(next) =>
+              onFaceDetectionSettingChange("detectFacesInVideoFiles", next)
+            }
+          />
+          <SettingsNumberField
+            title="Video face sample interval (seconds)"
+            description="How often to inspect a video frame. 1 second is a balance of speed and recall; lower values are more accurate and slower. Disabled when video detection is off."
+            value={faceDetectionSettings.videoFaceSampleIntervalSec}
+            min={0.25}
+            max={5}
+            step={0.25}
+            disabled={!faceDetectionSettings.detectFacesInVideoFiles}
+            onChange={(nextValue) =>
+              onFaceDetectionSettingChange("videoFaceSampleIntervalSec", nextValue)
+            }
+          />
+          <SettingsCheckboxField
             title="Keep tagged faces even when the new detector misses them"
             description="Keeps previously tagged face boxes even if a newly selected detector no longer finds them, preventing named people from disappearing after a re-run."
             checked={faceDetectionSettings.keepUnmatchedTaggedFaces}
@@ -1430,6 +1506,10 @@ export function DesktopSettingsSection({
               disabled={
                 faceDetectionSettings.detectorModel ===
                   DEFAULT_FACE_DETECTION_SETTINGS.detectorModel &&
+                faceDetectionSettings.detectFacesInVideoFiles ===
+                  DEFAULT_FACE_DETECTION_SETTINGS.detectFacesInVideoFiles &&
+                faceDetectionSettings.videoFaceSampleIntervalSec ===
+                  DEFAULT_FACE_DETECTION_SETTINGS.videoFaceSampleIntervalSec &&
                 faceDetectionSettings.minConfidenceThreshold ===
                   DEFAULT_FACE_DETECTION_SETTINGS.minConfidenceThreshold &&
                 faceDetectionSettings.minFaceBoxShortSideRatio ===
@@ -1784,6 +1864,119 @@ export function DesktopSettingsSection({
           </pre>
         </details>
         ) : null}
+      </SettingsSectionCard>
+
+      <SettingsSectionCard title={UI_TEXT.speechToText}>
+        <div className="space-y-3">
+          <SettingsCheckboxField
+            title={UI_TEXT.speechToTextEnableTitle}
+            description={UI_TEXT.speechToTextEnableDescription}
+            checked={speechSettings.enabled}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            surfaceVariant="accent-stripe"
+            onChange={handleSpeechToggle}
+          />
+          {showSpeechConfirm ? (
+            <div className="rounded-md border border-amber-700/60 border-l-4 border-l-primary/70 bg-amber-950/40 p-3">
+              <p className="m-0 text-sm font-medium text-amber-200">
+                {speechConfirmHasLocalCopy
+                  ? UI_TEXT.speechToTextLocalCopyTitle
+                  : UI_TEXT.speechToTextConfirmTitle}
+              </p>
+              <p className="m-0 mt-1 text-sm text-amber-200/80">
+                {speechConfirmHasLocalCopy
+                  ? UI_TEXT.speechToTextLocalCopyMessage
+                  : UI_TEXT.speechToTextConfirmMessage}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center rounded-md bg-amber-700 px-3 text-sm text-white hover:bg-amber-600"
+                  onClick={() => confirmSpeechDownload(false)}
+                >
+                  {speechConfirmHasLocalCopy ? "Use local copy" : "Download"}
+                </button>
+                {speechConfirmHasLocalCopy ? (
+                  <button
+                    type="button"
+                    className="inline-flex h-8 items-center rounded-md border border-amber-700/70 px-3 text-sm text-amber-100 hover:bg-amber-900/40"
+                    onClick={() => confirmSpeechDownload(true)}
+                  >
+                    Download again
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm"
+                  onClick={() => setShowSpeechConfirm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className={cn(settingsCustomOptionSurfaceClass("accent-stripe"), "border-l-primary/70")}>
+            <label className="grid gap-1 text-sm text-foreground" htmlFor="speech-language">
+              <span className="text-base font-medium">{UI_TEXT.speechLanguage}</span>
+              <span className="text-muted-foreground">{UI_TEXT.speechLanguageDescription}</span>
+              <input
+                id="speech-language"
+                type="text"
+                className="w-28 rounded-md border border-border bg-background px-2 py-1"
+                value={speechSettings.language}
+                spellCheck={false}
+                onChange={(event) => updateSpeechSetting("language", event.target.value)}
+              />
+            </label>
+          </div>
+          <SettingsCheckboxField
+            title={UI_TEXT.speechWordTimestamps}
+            description={UI_TEXT.speechWordTimestampsDescription}
+            checked={speechSettings.wordTimestamps}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            surfaceVariant="accent-stripe"
+            onChange={(next) => updateSpeechSetting("wordTimestamps", next)}
+          />
+          <SettingsCheckboxField
+            title={UI_TEXT.speechSilence}
+            description={UI_TEXT.speechSilenceDescription}
+            checked={speechSettings.includeSilenceSpans}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            surfaceVariant="accent-stripe"
+            onChange={(next) => updateSpeechSetting("includeSilenceSpans", next)}
+          />
+          <SettingsNumberField
+            title={UI_TEXT.speechSilenceMin}
+            description={UI_TEXT.speechSilenceMinDescription}
+            value={speechSettings.silenceMinMs}
+            min={0}
+            max={60000}
+            step={100}
+            surfaceVariant="accent-stripe"
+            onChange={(nextValue) => updateSpeechSetting("silenceMinMs", Math.max(0, Math.round(nextValue)))}
+          />
+          <SettingsCheckboxField
+            title={UI_TEXT.speechFiller}
+            description={UI_TEXT.speechFillerDescription}
+            checked={speechSettings.fillerDetection}
+            checkboxClassName={SETTINGS_OPTION_CHECKBOX_CLASS}
+            surfaceVariant="accent-stripe"
+            onChange={(next) => updateSpeechSetting("fillerDetection", next)}
+          />
+          <div className={cn(settingsCustomOptionSurfaceClass("accent-stripe"), "border-l-primary/70")}>
+            <label className="grid gap-1 text-sm text-foreground" htmlFor="speech-filler-words">
+              <span className="text-base font-medium">{UI_TEXT.speechFillerWords}</span>
+              <span className="text-muted-foreground">{UI_TEXT.speechFillerWordsDescription}</span>
+              <input
+                id="speech-filler-words"
+                type="text"
+                className="rounded-md border border-border bg-background px-2 py-1"
+                value={speechSettings.fillerWords}
+                onChange={(event) => updateSpeechSetting("fillerWords", event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
       </SettingsSectionCard>
 
       <PipelineConcurrencySettings hideAdvancedSettings={hideAdvancedSettings} />

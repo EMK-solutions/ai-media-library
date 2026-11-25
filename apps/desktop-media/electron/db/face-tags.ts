@@ -415,6 +415,7 @@ export function listPersonTagsWithFaceCounts(
             AND mi.deleted_at IS NULL
            WHERE fi.library_id = mt.library_id
              AND fi.tag_id = mt.id
+             AND mi.media_kind = 'image'
          ) AS tagged_face_count,
          COALESCE(pc.similar_untagged_face_count, 0) AS similar_face_count
        FROM media_tags mt
@@ -776,6 +777,7 @@ export function listFacesTaggedForPerson(
        INNER JOIN media_items mi ON mi.id = fi.media_item_id
        WHERE fi.library_id = ?
          AND mi.deleted_at IS NULL
+         AND mi.media_kind = 'image'
          AND fi.tag_id = ?
        ORDER BY fi.confidence DESC`,
     )

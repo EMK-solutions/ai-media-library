@@ -1,5 +1,5 @@
 import type { AppSettings } from "../../shared/ipc";
-import { DEFAULT_PHOTO_ANALYSIS_SETTINGS } from "../../shared/ipc";
+import { DEFAULT_PHOTO_ANALYSIS_SETTINGS, DEFAULT_SPEECH_ANALYSIS_SETTINGS } from "../../shared/ipc";
 import { refreshFolderAiRollups } from "../hooks/ipc-binding-helpers";
 import type { DesktopStore } from "../stores/desktop-store";
 
@@ -30,6 +30,10 @@ export function applyPersistedAppSettingsToStore(store: DesktopStore, settings: 
     if (settings.photoAnalysis?.model) {
       s.aiSelectedModel = settings.photoAnalysis.model;
     }
+    s.speechAnalysisSettings = {
+      ...DEFAULT_SPEECH_ANALYSIS_SETTINGS,
+      ...(settings.speechAnalysis ?? {}),
+    };
     s.folderScanningSettings = settings.folderScanning;
     s.smartAlbumSettings = settings.smartAlbums;
     s.aiImageSearchSettings = settings.aiImageSearch;

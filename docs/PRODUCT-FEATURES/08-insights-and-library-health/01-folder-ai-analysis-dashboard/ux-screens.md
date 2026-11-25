@@ -34,7 +34,8 @@ Screens for [F-08-01](README.md).
 ## UX notes
 
 - Green check = complete; amber percent = partial; dash = not done or not applicable. Failed
-  counts are a separate red/amber line, not a substitute for coverage.
+  counts are a separate red/amber line, not a substitute for coverage. When every file was
+  attempted and none succeeded, the pipeline is shown as not done (red), never green.
 - Dashboard Play is tree-wide. The media-header Analysis strip remains **direct images only**
   (`DesktopFolderAiPipelineStrip.tsx`) and is hidden while the summary is open.
 - Child folder names in the Subfolders table open this same view for that child.

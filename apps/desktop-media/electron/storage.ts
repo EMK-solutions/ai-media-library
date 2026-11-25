@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sanitizeSpeechLanguage } from "./speech/speech-language";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
@@ -11,6 +12,7 @@ import {
   DEFAULT_TV_BROADCAST_SETTINGS,
   DEFAULT_PATH_EXTRACTION_SETTINGS,
   DEFAULT_PHOTO_ANALYSIS_SETTINGS,
+  DEFAULT_SPEECH_ANALYSIS_SETTINGS,
   DEFAULT_SMART_ALBUM_SETTINGS,
   DEFAULT_WRONG_IMAGE_ROTATION_DETECTION_SETTINGS,
   SMART_ALBUM_EXCLUDABLE_IMAGE_CATEGORY_OPTIONS,
@@ -30,6 +32,7 @@ import {
   type PathExtractionSettings,
   type PhotoAnalysisSettings,
   type PhotoPendingFolderIconTint,
+  type SpeechAnalysisSettings,
   type SmartAlbumRatingOperator,
   type SmartAlbumSettings,
   type WrongImageRotationDetectionSettings,
@@ -94,6 +97,7 @@ async function readSettingsLocked(userDataPath: string): Promise<AppSettings> {
     ),
     faceDetection: sanitizeFaceDetectionSettings(parsed.faceDetection),
     photoAnalysis: sanitizePhotoAnalysisSettings(parsed.photoAnalysis),
+    speechAnalysis: sanitizeSpeechAnalysisSettings(parsed.speechAnalysis),
     folderScanning: sanitizeFolderScanningSettings(parsed.folderScanning),
     smartAlbums: sanitizeSmartAlbumSettings(parsed.smartAlbums),
     aiImageSearch: sanitizeAiImageSearchSettings(parsed.aiImageSearch),
@@ -296,6 +300,16 @@ function sanitizeFaceDetectionSettings(candidate: unknown): FaceDetectionSetting
   const value = isRecord(candidate) ? candidate : {};
   return {
     detectorModel: sanitizeDetectorModel(value.detectorModel),
+    detectFacesInVideoFiles:
+      typeof value.detectFacesInVideoFiles === "boolean"
+        ? value.detectFacesInVideoFiles
+        : DEFAULT_FACE_DETECTION_SETTINGS.detectFacesInVideoFiles,
+    videoFaceSampleIntervalSec: clampToRange(
+      asNumber(value.videoFaceSampleIntervalSec),
+      0.25,
+      5,
+      DEFAULT_FACE_DETECTION_SETTINGS.videoFaceSampleIntervalSec,
+    ),
     minConfidenceThreshold: clampToRange(
       asNumber(value.minConfidenceThreshold),
       0,
@@ -402,6 +416,30 @@ function sanitizeAuxToggle<
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : fallback.enabled,
     model: modelCandidate,
+  };
+}
+
+function sanitizeSpeechAnalysisSettings(candidate: unknown): SpeechAnalysisSettings {
+  if (!candidate || typeof candidate !== "object") {
+    return { ...DEFAULT_SPEECH_ANALYSIS_SETTINGS };
+  }
+  const value = candidate as Partial<SpeechAnalysisSettings>;
+  const silenceMinMs =
+    typeof value.silenceMinMs === "number" && Number.isFinite(value.silenceMinMs)
+      ? Math.max(0, Math.min(60_000, Math.round(value.silenceMinMs)))
+      : DEFAULT_SPEECH_ANALYSIS_SETTINGS.silenceMinMs;
+  const fillerWords =
+    typeof value.fillerWords === "string" && value.fillerWords.trim().length > 0
+      ? value.fillerWords
+      : DEFAULT_SPEECH_ANALYSIS_SETTINGS.fillerWords;
+  return {
+    enabled: value.enabled === true,
+    language: sanitizeSpeechLanguage(value.language),
+    wordTimestamps: value.wordTimestamps === true,
+    includeSilenceSpans: value.includeSilenceSpans !== false,
+    silenceMinMs,
+    fillerDetection: value.fillerDetection === true,
+    fillerWords,
   };
 }
 
@@ -615,7 +653,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-const VALID_CONCURRENCY_GROUPS: ReadonlyArray<PipelineConcurrencyGroup> = ["gpu", "ollama", "cpu", "io"];
+const VALID_CONCURRENCY_GROUPS: ReadonlyArray<PipelineConcurrencyGroup> = ["gpu", "ollama", "cpu", "io", "speech"];
 
 function sanitizePipelineConcurrency(candidate: unknown): PipelineConcurrencyConfig {
   const value = isRecord(candidate) ? candidate : {};

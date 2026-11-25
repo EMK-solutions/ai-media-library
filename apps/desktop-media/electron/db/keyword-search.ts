@@ -59,7 +59,8 @@ export function getFtsFieldsFromAiMetadata(
   const aiDesc = typeof imageAnalysis.description === "string" ? imageAnalysis.description.trim() : "";
 
   const title = embTitle || aiTitle;
-  const description = embDesc || aiDesc;
+  const speechText = speechTextFromMetadata(norm);
+  const description = [embDesc || aiDesc, speechText].filter((part) => part.length > 0).join("\n");
   const locationFromName = typeof locationName === "string" ? locationName.trim() : "";
   const location = locationFromName || embLoc || aiLocationToFtsString(imageAnalysis.location);
   const category = typeof imageAnalysis.image_category === "string" ? imageAnalysis.image_category : "";
@@ -69,6 +70,12 @@ export function getFtsFieldsFromAiMetadata(
     typeof embStar === "number" && Number.isFinite(embStar) ? starRatingToFtsTokens(embStar) : "";
 
   return { title, description, location, category, ratingTokens };
+}
+
+function speechTextFromMetadata(norm: ReturnType<typeof normalizeMetadata>): string {
+  const speech = norm.speech_analysis;
+  if (!speech || typeof speech.text !== "string") return "";
+  return speech.text.trim();
 }
 
 function aiLocationToFtsString(loc: unknown): string {

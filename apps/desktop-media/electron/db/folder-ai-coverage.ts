@@ -5,7 +5,7 @@ import type {
   FolderAiPipelineLabel,
   FolderAiSidebarRollup,
 } from "../../src/shared/ipc";
-import { IMAGE_EXTENSIONS } from "../../src/shared/ipc";
+import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from "../../src/shared/ipc";
 import { getDesktopDatabase } from "./client";
 import { DEFAULT_LIBRARY_ID } from "./folder-analysis-status";
 import { getFolderGeoCoverage } from "./folder-geo-coverage";
@@ -31,6 +31,14 @@ function buildImageFilePredicate(): string {
   return `(mi.mime_type LIKE 'image/%' OR ${extClauses.join(" OR ")})`;
 }
 
+function buildVideoFilePredicate(): string {
+  const extClauses = [...VIDEO_EXTENSIONS].map((ext) => {
+    const pat = `%${ext}`.replace(/'/g, "''");
+    return `lower(mi.filename) LIKE '${pat}'`;
+  });
+  return `(mi.media_kind = 'video' OR mi.mime_type LIKE 'video/%' OR ${extClauses.join(" OR ")})`;
+}
+
 function pipelineLabel(done: number, total: number): FolderAiPipelineLabel {
   if (total === 0) return "empty";
   if (done === 0) return "not_done";
@@ -45,11 +53,13 @@ function toPipelineCounts(
   issueCount?: number,
   extras?: Pick<FolderAiPipelineCounts, "imagesWithFacesCount" | "imagesWithTaggedFacesCount">,
 ): FolderAiPipelineCounts {
+  const attempted = Math.min(done + failed, total);
+  const allAttemptsFailed = total > 0 && done === 0 && attempted === total;
   return {
     doneCount: done,
     failedCount: failed,
     totalImages: total,
-    label: pipelineLabel(Math.min(done + failed, total), total),
+    label: allAttemptsFailed ? "not_done" : pipelineLabel(attempted, total),
     ...(typeof issueCount === "number" ? { issueCount } : {}),
     ...(extras ?? {}),
   };
@@ -65,6 +75,7 @@ export function getFolderAiCoverage(params: {
   libraryId?: string;
   semanticModelVersion?: string;
   minRotationConfidenceThreshold?: number;
+  includeVideosInFaceCoverage?: boolean;
 }): FolderAiCoverageReport {
   const libraryId = params.libraryId ?? DEFAULT_LIBRARY_ID;
   const modelVersion = params.semanticModelVersion ?? MULTIMODAL_EMBED_MODEL;
@@ -184,23 +195,101 @@ export function getFolderAiCoverage(params: {
   const faceImagesWithFaces = Number(row?.face_images_with_faces ?? 0);
   const faceImagesWithTaggedFaces = Number(row?.face_images_with_tagged_faces ?? 0);
 
+  let faceDoneTotal = faceDone;
+  let faceFailedTotal = faceFailed;
+  let faceTotal = total;
+  if (params.includeVideosInFaceCoverage) {
+    const videoPred = buildVideoFilePredicate();
+    const videoSql = `
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN mi.face_detection_processed_at IS NOT NULL AND (mi.face_detection_failed_at IS NULL OR mi.face_detection_processed_at > mi.face_detection_failed_at) THEN 1 ELSE 0 END) AS face_done,
+        SUM(CASE WHEN mi.face_detection_failed_at IS NOT NULL AND (mi.face_detection_processed_at IS NULL OR mi.face_detection_failed_at >= mi.face_detection_processed_at) THEN 1 ELSE 0 END) AS face_failed
+      FROM media_items mi
+      WHERE mi.library_id = ?
+        AND mi.deleted_at IS NULL
+        AND ${videoPred}
+        AND mi.source_path LIKE ? ESCAPE '~'
+        ${depthClause}
+    `;
+    const videoArgs: unknown[] = [libraryId, likePattern];
+    if (!params.recursive) {
+      videoArgs.push(folderPrefix, sep);
+    }
+    const videoRow = db.prepare(videoSql).get(...videoArgs) as {
+      total: number | null;
+      face_done: number | null;
+      face_failed: number | null;
+    };
+    faceTotal += Number(videoRow?.total ?? 0);
+    faceDoneTotal += Number(videoRow?.face_done ?? 0);
+    faceFailedTotal += Number(videoRow?.face_failed ?? 0);
+  }
+
+  const speech = querySpeechCoverage(db, {
+    libraryId,
+    videoPred: buildVideoFilePredicate(),
+    likePattern,
+    depthClause,
+    folderPrefix,
+    sep,
+    recursive: params.recursive,
+  });
+
   return {
     folderPath,
     recursive: params.recursive,
     totalImages: total,
     photo: toPipelineCounts(photoDone, photoFailed, total),
-    face: toPipelineCounts(faceDone, faceFailed, total, undefined, {
+    face: toPipelineCounts(faceDoneTotal, faceFailedTotal, faceTotal, undefined, {
       imagesWithFacesCount: faceImagesWithFaces,
       imagesWithTaggedFacesCount: faceImagesWithTaggedFaces,
     }),
     semantic: toPipelineCounts(semanticDone, semanticFailed, total),
     rotation: toPipelineCounts(rotationDone, rotationFailed, total, rotationWrong),
+    speech,
     geo: getFolderGeoCoverage({
       folderPath,
       recursive: params.recursive,
       libraryId,
     }),
   };
+}
+
+function querySpeechCoverage(
+  db: ReturnType<typeof getDesktopDatabase>,
+  scope: {
+    libraryId: string;
+    videoPred: string;
+    likePattern: string;
+    depthClause: string;
+    folderPrefix: string;
+    sep: string;
+    recursive: boolean;
+  },
+): FolderAiPipelineCounts {
+  const sql = `
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN mi.speech_analysis_processed_at IS NOT NULL AND (mi.speech_analysis_failed_at IS NULL OR mi.speech_analysis_processed_at > mi.speech_analysis_failed_at) THEN 1 ELSE 0 END) AS speech_done,
+      SUM(CASE WHEN mi.speech_analysis_failed_at IS NOT NULL AND (mi.speech_analysis_processed_at IS NULL OR mi.speech_analysis_failed_at >= mi.speech_analysis_processed_at) THEN 1 ELSE 0 END) AS speech_failed
+    FROM media_items mi
+    WHERE mi.library_id = ?
+      AND mi.deleted_at IS NULL
+      AND ${scope.videoPred}
+      AND mi.source_path LIKE ? ESCAPE '~'
+      ${scope.depthClause}
+  `;
+  const args: unknown[] = [scope.libraryId, scope.likePattern];
+  if (!scope.recursive) {
+    args.push(scope.folderPrefix, scope.sep);
+  }
+  const row = db.prepare(sql).get(...args) as {
+    total: number | null;
+    speech_done: number | null;
+    speech_failed: number | null;
+  };
+  return toPipelineCounts(Number(row?.speech_done ?? 0), Number(row?.speech_failed ?? 0), Number(row?.total ?? 0));
 }
 
 function emptyReport(folderPath: string, recursive: boolean): FolderAiCoverageReport {
@@ -212,6 +301,7 @@ function emptyReport(folderPath: string, recursive: boolean): FolderAiCoverageRe
     face: toPipelineCounts(0, 0, 0),
     semantic: toPipelineCounts(0, 0, 0),
     rotation: toPipelineCounts(0, 0, 0),
+    speech: toPipelineCounts(0, 0, 0),
     geo: {
       images: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },
       videos: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },
@@ -229,7 +319,7 @@ function emptyReport(folderPath: string, recursive: boolean): FolderAiCoverageRe
 }
 
 export function folderCoverageToSidebarRollup(coverage: FolderAiCoverageReport): FolderAiSidebarRollup {
-  if (coverage.totalImages === 0) return "empty";
+  if (coverage.totalImages === 0 && coverage.face.totalImages === 0) return "empty";
   const { photo, face, semantic } = coverage;
   if (
     face.label === "done" &&
@@ -257,10 +347,12 @@ export function folderCoverageToSidebarRollup(coverage: FolderAiCoverageReport):
 export function getFolderAiRollupsForPaths(
   folderPaths: string[],
   libraryId?: string,
+  options?: { includeVideosInFaceCoverage?: boolean },
 ): Record<string, FolderAiSidebarRollup> {
   const resolvedLibraryId = libraryId ?? DEFAULT_LIBRARY_ID;
   const modelVersion = MULTIMODAL_EMBED_MODEL;
   const imagePred = buildImageFilePredicate();
+  const includeVideosInFaceCoverage = options?.includeVideosInFaceCoverage === true;
 
   const trimmedPaths = folderPaths
     .map((p) => p?.trim())
@@ -307,6 +399,35 @@ export function getFolderAiRollupsForPaths(
     semantic_done: number | null;
   }>;
 
+  const videoFaceByIdx = new Map<number, { total: number; faceDone: number }>();
+  if (includeVideosInFaceCoverage) {
+    const videoPred = buildVideoFilePredicate();
+    const videoSql = `
+      SELECT
+        fp.column1 AS folder_idx,
+        COUNT(*) AS total,
+        SUM(CASE WHEN mi.face_detection_processed_at IS NOT NULL THEN 1 ELSE 0 END) AS face_done
+      FROM (VALUES ${valuesRows.join(", ")}) AS fp
+      JOIN media_items mi
+        ON mi.source_path LIKE fp.column2 ESCAPE '~'
+      WHERE mi.library_id = ?
+        AND mi.deleted_at IS NULL
+        AND ${videoPred}
+      GROUP BY fp.column1
+    `;
+    const videoRows = db.prepare(videoSql).all(resolvedLibraryId) as Array<{
+      folder_idx: number;
+      total: number | null;
+      face_done: number | null;
+    }>;
+    for (const videoRow of videoRows) {
+      videoFaceByIdx.set(videoRow.folder_idx, {
+        total: Number(videoRow.total ?? 0),
+        faceDone: Number(videoRow.face_done ?? 0),
+      });
+    }
+  }
+
   const out: Record<string, FolderAiSidebarRollup> = {};
   const rowByIdx = new Map(rows.map((r) => [r.folder_idx, r]));
 
@@ -316,15 +437,19 @@ export function getFolderAiRollupsForPaths(
     const photoDone = Number(row?.photo_done ?? 0);
     const faceDone = Number(row?.face_done ?? 0);
     const semanticDone = Number(row?.semantic_done ?? 0);
+    const videoFace = videoFaceByIdx.get(i);
+    const faceTotal = total + (videoFace?.total ?? 0);
+    const faceDoneTotal = faceDone + (videoFace?.faceDone ?? 0);
 
     const cov: FolderAiCoverageReport = {
       folderPath: trimmedPaths[i],
       recursive: true,
       totalImages: total,
       photo: toPipelineCounts(photoDone, 0, total),
-      face: toPipelineCounts(faceDone, 0, total),
+      face: toPipelineCounts(faceDoneTotal, 0, faceTotal),
       semantic: toPipelineCounts(semanticDone, 0, total),
       rotation: toPipelineCounts(0, 0, total),
+      speech: toPipelineCounts(0, 0, 0),
       geo: {
         images: { total, withGpsCount: 0, withoutGpsCount: total, locationDetailsDoneCount: 0 },
         videos: { total: 0, withGpsCount: 0, withoutGpsCount: 0, locationDetailsDoneCount: 0 },

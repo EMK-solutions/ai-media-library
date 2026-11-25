@@ -3,6 +3,7 @@ import { ChevronRight, Loader, Pause, Play } from "lucide-react";
 import { cn } from "../lib/cn";
 import { UI_TEXT } from "../lib/ui-text";
 import { useDesktopStore } from "../stores/desktop-store";
+import { FolderSpeechMenuRow } from "./FolderSpeechMenuRow";
 
 const submenuLabelClass =
   "flex min-h-8 items-center justify-between gap-2 text-[13px] leading-snug text-muted-foreground";
@@ -302,6 +303,7 @@ export function FolderAnalysisMenuSection({
           ) : null}
         </>
       ) : null}
+      <FolderSpeechMenuRow targetFolderPath={targetFolderPath} onDismiss={onDismiss} />
     </>
   );
 }

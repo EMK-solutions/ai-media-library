@@ -187,3 +187,31 @@ describe("readSettings face landmark refinement", () => {
     }
   });
 });
+
+describe("readSettings video face detection", () => {
+  it("defaults detectFacesInVideoFiles on and clamps the sample interval", async () => {
+    const userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), "emk-storage-video-face-"));
+    try {
+      const settingsPath = path.join(userDataPath, "media-settings.json");
+      await fs.mkdir(userDataPath, { recursive: true });
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify({
+          ...DEFAULT_APP_SETTINGS,
+          clientId: "test-client-video-face",
+          faceDetection: {
+            ...DEFAULT_FACE_DETECTION_SETTINGS,
+            videoFaceSampleIntervalSec: 99,
+          },
+        }),
+        "utf-8",
+      );
+
+      const read = await readSettings(userDataPath);
+      expect(read.faceDetection.detectFacesInVideoFiles).toBe(true);
+      expect(read.faceDetection.videoFaceSampleIntervalSec).toBe(5);
+    } finally {
+      await fs.rm(userDataPath, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+});

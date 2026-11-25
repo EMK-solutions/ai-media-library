@@ -682,6 +682,57 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
         ON folder_quick_scan_snapshot (library_id, folder_path);
     `,
   },
+  {
+    id: "027_video_face_tracks",
+    sql: `
+      ALTER TABLE media_face_instances ADD COLUMN face_track_id TEXT;
+      CREATE TABLE IF NOT EXISTS media_face_tracks (
+        id TEXT PRIMARY KEY,
+        library_id TEXT NOT NULL,
+        media_item_id TEXT NOT NULL,
+        track_index INTEGER NOT NULL,
+        sample_count INTEGER NOT NULL,
+        start_time_ms INTEGER NOT NULL,
+        end_time_ms INTEGER NOT NULL,
+        suggested_tag_id TEXT,
+        primary_face_instance_id TEXT,
+        secondary_face_instance_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_face_tracks_item
+        ON media_face_tracks (library_id, media_item_id);
+      CREATE INDEX IF NOT EXISTS idx_media_face_instances_track
+        ON media_face_instances (face_track_id);
+      CREATE TABLE IF NOT EXISTS media_face_track_samples (
+        id TEXT PRIMARY KEY,
+        library_id TEXT NOT NULL,
+        track_id TEXT NOT NULL,
+        frame_index INTEGER NOT NULL,
+        time_ms INTEGER NOT NULL,
+        bbox_x REAL NOT NULL,
+        bbox_y REAL NOT NULL,
+        bbox_width REAL NOT NULL,
+        bbox_height REAL NOT NULL,
+        bbox_ref_width REAL,
+        bbox_ref_height REAL,
+        confidence REAL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_face_track_samples_track
+        ON media_face_track_samples (track_id, time_ms);
+    `,
+  },
+  {
+    id: "028_speech_analysis_columns",
+    sql: `
+      ALTER TABLE media_items ADD COLUMN speech_analysis_processed_at TEXT;
+      ALTER TABLE media_items ADD COLUMN speech_analysis_failed_at TEXT;
+      ALTER TABLE media_items ADD COLUMN speech_analysis_error TEXT;
+      CREATE INDEX IF NOT EXISTS idx_media_items_speech_analysis_processed
+        ON media_items (library_id, speech_analysis_processed_at);
+    `,
+  },
 ];
 
 let db: SQLiteDatabase | null = null;

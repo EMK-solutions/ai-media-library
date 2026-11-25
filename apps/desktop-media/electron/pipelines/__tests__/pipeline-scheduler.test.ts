@@ -239,7 +239,7 @@ describe("PipelineScheduler", () => {
     });
 
     const cfg: PipelineConcurrencyConfig = {
-      groupLimits: { gpu: 1, ollama: 1, cpu: 2, io: 2 },
+      groupLimits: { gpu: 1, ollama: 1, cpu: 2, io: 2, speech: 1 },
     };
     const sched = new PipelineScheduler(() => cfg);
 

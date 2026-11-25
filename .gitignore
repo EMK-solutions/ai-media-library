@@ -66,3 +66,6 @@ coverage/
 /ai-models/**
 !/ai-models/README.md
 !/ai-models/MODELS.json
+
+# Local speech clips and their expected phrases. Not used by CI.
+apps/desktop-media/test-assets/e2e-speech-videos/**

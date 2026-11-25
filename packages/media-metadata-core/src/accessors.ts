@@ -366,6 +366,7 @@ export function getAdditionalTopLevelFields(
     'document_data',
     'path_extraction',
     'locations_by_source',
+    'speech_analysis',
   ]);
   const extras: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(normalized)) {

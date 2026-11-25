@@ -3,11 +3,12 @@ id: F-05-03
 module: 05-search-and-discovery
 title: Search filters & scope
 status: shipped
-last_reviewed: 2026-08-26
+last_reviewed: 2026-08-29
 source_of_truth:
   - apps/desktop-media/src/renderer/components/SemanticSearchPanel.tsx
   - apps/desktop-media/src/renderer/components/semantic-search-person-tags-bar.tsx
   - apps/desktop-media/electron/db/semantic-search.ts
+  - apps/desktop-media/electron/db/person-matching-videos.ts
   - apps/desktop-media/src/renderer/hooks/use-semantic-handlers.ts
   - packages/media-store/src/slices/semantic-search.ts
 related:
@@ -113,11 +114,15 @@ Not for: filtering albums or the People workspace; those have their own filter b
 1. A **Person tags** row appears (name filter, optional Show all / Hide all, chips).
 2. The user selects one or more people. **Include unconfirmed similar faces** becomes enabled
    (it is checked by default for new sessions).
-3. Search runs. Each selected person must be present on the photo, either as a confirmed tag or
+3. Search runs. Each selected person must be present on the **file**, either as a confirmed tag or
    — if unconfirmed is on — as a stored suggestion.
 4. Turning unconfirmed off restricts hits to confirmed tags only.
+5. Matching **videos** are appended after ranked stills. They have no vision/description similarity
+   until a later "index video for AI search" feature; they sort by suggestion score among themselves.
+   A prompt still ranks photos; people+prompt returns matching videos as extra hits.
 
-**Outcome:** the result list is about those people.
+**Outcome:** the result list is about those people, including clips that only have person
+suggestions.
 
 ## 6. Screens & UX
 
@@ -152,12 +157,13 @@ Not for: filtering albums or the People workspace; those have their own filter b
 | BR-1 | Default scope is **global**. | The photo may not be in the folder currently open. | `packages/media-store/src/slices/semantic-search.ts` |
 | BR-2 | Folder-scoped radios are disabled until a folder is selected. | There is no folder path to constrain. | `SemanticSearchPanel.tsx` |
 | BR-3 | Non-recursive folder scope keeps only files whose parent directory is exactly the selected folder. | "This folder" must not silently include nested events. | `apps/desktop-media/electron/db/semantic-search.ts` |
-| BR-4 | Multiple person tags combine with AND: every selected person must match the same photo. | "Alice and Bob" is not "Alice or Bob". | `semantic-search.ts` person-tag `EXISTS` loop |
+| BR-4 | Multiple person tags combine with AND: every selected person must match the same file. | "Alice and Bob" is not "Alice or Bob". | `semantic-search.ts` person-tag `EXISTS` loop |
 | BR-5 | Unconfirmed matching is off unless at least one person is selected **and** the include flag is true on the request. | Avoids expanding the whole library to suggestions. | `semantic-search-handlers.ts` |
 | BR-6 | Include unconfirmed similar faces defaults **on** for a new session. | Recall while the user is still confirming faces. | `semantic-search.ts` store |
 | BR-7 | When unconfirmed is on, each person matches a confirmed face tag **or** a row in the person-suggestion table. Suggestions may be filled lazily at search time using the face-recognition similarity threshold (default **0.38**). | Uses the same suggestion store as Tagged faces. | `semantic-search.ts`; `semantic-search-handlers.ts` |
 | BR-8 | Quick filters apply to search results after similarity floors. | The count the user sees is what is on screen. | `use-filtered-media-items.ts` |
 | BR-9 | Event year range and location text from quick filters are also sent as search constraints. | Better ranking in a smaller candidate set. | `quickFiltersToSearchEventLocationExtras`; `use-semantic-handlers.ts` |
+| BR-10 | When person chips are set, videos that match the same person filter (AND, same unconfirmed rule) are unioned into results after ranked stills, even if they have no vision index. | AI image search only ranks indexed photos; clips would otherwise never appear. | `apps/desktop-media/electron/db/person-matching-videos.ts` |
 
 ## 8. Settings & defaults
 
@@ -204,6 +210,7 @@ only and is cleared when entering or leaving search results.
 | E2E | `apps/desktop-media/tests/e2e/unconfirmed-face-search.spec.ts` | Person-tag filter expands when unconfirmed is included |
 | E2E | `apps/desktop-media/tests/e2e/quick-filters.spec.ts` | Quick filters apply on the search path |
 | Unit | `apps/desktop-media/src/renderer/lib/semantic-search-person-groups-visible.test.ts` | Visibility helpers (used by other surfaces; person-tag search uses `tagged-faces-tab-visible-tags.ts`) |
+| Unit | `apps/desktop-media/electron/db/person-matching-videos.test.ts` | Person-matching videos unioned after ranked stills without a vision index |
 
 **Coverage gaps:** no E2E for the three scope radios, for AND across two people, or for
 unconfirmed default-on vs toggling off in the UI without fixtures.
@@ -214,6 +221,8 @@ unconfirmed default-on vs toggling off in the UI without fixtures.
   matches (older notes treated that as future work).
 - **Limitation:** person **groups** are not a control in the AI image search panel (a groups bar
   exists for album / best-of filters, not here).
+- **Limitation:** videos matching person chips are listed after ranked photos and are not scored
+  by vision or description similarity (no video search index yet).
 - **Open question:** whether people, rating and category should also pre-filter candidates the
   way year and location already do.
 
