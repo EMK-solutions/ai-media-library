@@ -152,7 +152,7 @@ full rules, including the optional write-back into the file.
 
 **Alternate paths**
 
-- The open item is a video → "Face tags are available for images only."
+- The open item is a video → Face tags lists stored faces with a placeholder instead of a crop, and no boxes are drawn on the video.
 - Face detection has recorded faces but the stored analysis holds no boxes → the panel falls back
   to the recorded face positions so the tab is still usable.
 - The user arrives from the people screens → the viewer opens with the panel already showing and
@@ -211,7 +211,7 @@ full rules, including the optional write-back into the file.
 | Open, item catalogued | Date, stars, headline and the collapsible sections |
 | Open, item not catalogued | The file name and "Metadata is not available yet for this file." |
 | Section with no data | The section header with a zero count and an explanatory sentence inside |
-| Face tags on a video | "Face tags are available for images only." |
+| Face tags on a video | Stored faces with a placeholder thumbnail. No boxes on the video. |
 
 **UX notes**
 
@@ -239,7 +239,7 @@ full rules, including the optional write-back into the file.
 | BR-7 | The location line combines country, region, second-level area and city, and names its source when the place was inferred by AI from the file path or from the image. | The user must be able to tell a recorded GPS place from an inferred one. | `apps/desktop-media/src/renderer/components/DesktopViewerInfoPanel.tsx` |
 | BR-8 | The AI star rating shown under quality is derived from the model's ten-point aesthetic score, halved and rounded up into the range one to five. It is separate from the user's own star rating. | Users compare the app's opinion with their own without the two being confused. | `apps/desktop-media/src/renderer/components/DesktopViewerInfoPanel.tsx` |
 | BR-9 | The star row in the Info tab always shows all five stars and includes the rejected marker, unlike the grid and list. | The panel is the deliberate place to rate, so the full control is appropriate. | `apps/desktop-media/src/renderer/components/DesktopViewerInfoRatingRow.tsx` |
-| BR-10 | For videos, the file section is titled "Media file data", a "Video data" section is added, and the Face tags tab explains that face tagging is images only. | Video items must not appear broken just because image-only data is missing. | `apps/desktop-media/src/renderer/components/DesktopViewerInfoPanel.tsx` |
+| BR-10 | For videos, the file section is titled "Media file data", a "Video data" section is added, and Face tags lists stored faces without drawing boxes on the video. | Video items must not appear broken just because image-only data is missing. | `apps/desktop-media/src/renderer/components/DesktopViewerInfoPanel.tsx` |
 | BR-11 | When the stored analysis contains no face boxes but the catalog holds detected faces for the item, the panel draws those recorded positions instead. | Face tagging stays usable on items analysed by older versions. | `apps/desktop-media/src/renderer/components/DesktopViewerInfoPanel.tsx` |
 | BR-12 | Opening an image refreshes its metadata from the catalog, so results from a pipeline that finished after the folder was loaded appear without reselecting the folder, and switching away from the Face tags tab clears the selected face. | The panel should never show stale AI results, and an invisible face selection must not persist into another tab. | `apps/desktop-media/src/renderer/components/DesktopViewerInfoPanel.tsx` |
 

@@ -16,6 +16,8 @@ export interface FaceTagsEntryCardProps {
   badges?: ReactNode;
   details?: ReactNode;
   thumbnailStyle?: CSSProperties | null;
+  /** Replaces the cropped photo when the source cannot be shown as an image, such as a video. */
+  thumbnail?: ReactNode;
 }
 
 export function FaceTagsEntryCard({
@@ -27,6 +29,7 @@ export function FaceTagsEntryCard({
   badges,
   details,
   thumbnailStyle,
+  thumbnail,
 }: FaceTagsEntryCardProps): ReactElement {
   return (
     <div
@@ -39,7 +42,11 @@ export function FaceTagsEntryCard({
       )}
     >
       <div className="flex gap-3">
-        {thumbnailStyle ? (
+        {thumbnail ? (
+          <div className="size-[5.25rem] shrink-0 overflow-hidden rounded-md bg-muted" role="img" aria-label={`Face #${index + 1}`}>
+            {thumbnail}
+          </div>
+        ) : thumbnailStyle ? (
           <div
             className="size-[5.25rem] shrink-0 rounded-md bg-muted"
             style={thumbnailStyle}

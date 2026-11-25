@@ -64,6 +64,26 @@ test.describe("Video face detection", () => {
       expect(progress.last).toMatchObject({ videoProcessed: 2, videosWithFaces: 1 });
       expect(progress.files.some((file) => file.toLowerCase().includes("person.mp4"))).toBe(true);
       expect(progress.files.some((file) => file.toLowerCase().includes("no-face-video.mp4"))).toBe(true);
+
+      await mainWindow.getByText("person.mp4", { exact: true }).click();
+      await expect(mainWindow.locator(".media-swiper-theme")).toBeVisible({ timeout: 20_000 });
+      await mainWindow.getByRole("button", { name: "Show info" }).click();
+      await mainWindow.getByRole("button", { name: /Face tags/ }).click();
+      await expect(mainWindow.getByRole("img", { name: "Face #1" })).toBeVisible();
+      await expect(mainWindow.getByRole("button", { name: "Remove person tag from face" })).toBeVisible();
+      await expect(mainWindow.getByText("Face tags are available for images only.")).toHaveCount(0);
+      await expect(mainWindow.getByRole("button", { name: "Detect faces - local" })).toHaveCount(0);
+      await expect(mainWindow.locator('div[style*="border-radius: 16"]')).toHaveCount(0);
+      await expect(mainWindow.getByText("Click a face entry to highlight the corresponding bounding box on the photo.")).toHaveCount(0);
+
+      await mainWindow.getByRole("button", { name: "Close viewer" }).click();
+      await expect(mainWindow.locator(".media-swiper-theme")).toHaveCount(0);
+      await mainWindow.getByText("no-face-video.mp4", { exact: true }).click();
+      await expect(mainWindow.locator(".media-swiper-theme")).toBeVisible({ timeout: 20_000 });
+      await mainWindow.getByRole("button", { name: "Show info" }).click();
+      await mainWindow.getByRole("button", { name: /Face tags/ }).click();
+      await expect(mainWindow.getByText("No faces detected for this media item yet.")).toBeVisible();
+      await expect(mainWindow.locator('div[style*="border-radius: 16"]')).toHaveCount(0);
     } finally {
       await mainWindow.evaluate(() => {
         // @ts-expect-error test probe

@@ -441,6 +441,7 @@ export function DesktopViewerInfoPanel({
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [imageInfo, setImageInfo] = useState<FaceOverlayImageInfo | null>(null);
   const [fetchedMetadata, setFetchedMetadata] = useState<DesktopMediaItemMetadata | null>(null);
+  const [listedFaceCount, setListedFaceCount] = useState(0);
   const infoMetadata = fetchedMetadata ?? metadata;
 
   const updateImageInfo = useCallback(() => {
@@ -483,6 +484,7 @@ export function DesktopViewerInfoPanel({
   useEffect(() => {
     let cancelled = false;
     setFetchedMetadata(null);
+    setListedFaceCount(0);
     void onRefreshMetadata(item.sourcePath).then((next) => {
       if (!cancelled && next) setFetchedMetadata(next);
     });
@@ -690,39 +692,42 @@ export function DesktopViewerInfoPanel({
         {
           id: "tags",
           label: "Face tags",
-          badgeCount: currentBoundingBoxes.length > 0 ? currentBoundingBoxes.length : undefined,
+          badgeCount: isVideo
+            ? listedFaceCount > 0
+              ? listedFaceCount
+              : undefined
+            : currentBoundingBoxes.length > 0
+              ? currentBoundingBoxes.length
+              : undefined,
           content: (
             <div className="grid gap-3">
-              {isVideo ? (
-                <p className="m-0 text-sm text-muted-foreground">
-                  Face tags are available for images only.
-                </p>
-              ) : (
-                <DesktopFaceTagsTabContent
-                  mediaItemId={item.mediaItemId ?? metadata?.id ?? null}
-                  sourcePath={item.sourcePath}
-                  imageWidth={metadata?.width ?? null}
-                  imageHeight={metadata?.height ?? null}
-                  boundingBoxes={currentBoundingBoxes}
-                  faceDisplayOrder={faceDisplayOrder}
-                  selectedIndex={selectedFaceIndex}
-                  onSelectIndex={(index) =>
-                    setSelectedFaceIndex((current) => (current === index ? null : index))
-                  }
-                  onBoundingBoxesReplace={(boxes) => {
-                    setCurrentBoundingBoxes(boxes);
-                    setSelectedFaceIndex((current) =>
-                      current !== null && current >= boxes.length ? null : current,
-                    );
-                  }}
-                  onRefreshMetadataBoxes={async () => {
-                    const refreshed = await onRefreshMetadata(item.sourcePath);
-                    const boxes = getPeopleBoundingBoxes(refreshed?.aiMetadata ?? null);
-                    setCurrentBoundingBoxes(boxes);
-                    return boxes;
-                  }}
-                />
-              )}
+              <DesktopFaceTagsTabContent
+                mediaItemId={item.mediaItemId ?? infoMetadata?.id ?? null}
+                sourcePath={item.sourcePath}
+                imageWidth={infoMetadata?.width ?? null}
+                imageHeight={infoMetadata?.height ?? null}
+                boundingBoxes={isVideo ? [] : currentBoundingBoxes}
+                faceDisplayOrder={isVideo ? [] : faceDisplayOrder}
+                selectedIndex={selectedFaceIndex}
+                onSelectIndex={(index) =>
+                  setSelectedFaceIndex((current) => (current === index ? null : index))
+                }
+                onBoundingBoxesReplace={(boxes) => {
+                  if (isVideo) return;
+                  setCurrentBoundingBoxes(boxes);
+                  setSelectedFaceIndex((current) =>
+                    current !== null && current >= boxes.length ? null : current,
+                  );
+                }}
+                onRefreshMetadataBoxes={async () => {
+                  const refreshed = await onRefreshMetadata(item.sourcePath);
+                  const boxes = getPeopleBoundingBoxes(refreshed?.aiMetadata ?? null);
+                  if (!isVideo) setCurrentBoundingBoxes(boxes);
+                  return boxes;
+                }}
+                onFaceCountChange={setListedFaceCount}
+                usePlaceholderThumbnail={isVideo}
+              />
             </div>
           ),
         },

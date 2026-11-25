@@ -327,8 +327,7 @@ proves the wiring rather than detection quality. Tag-preserving re-detection (BR
   refinement is on by default, so a user cannot turn it off from the UI.
 - **Limitation:** detection is per-folder and manual; adding files to a folder does not schedule
   detection for them.
-- **Limitation:** video faces in v1 have no Face tags tab, People-grid cards, or overlay on
-  playback. Representative faces are stored so that UI can land later without reprocessing.
+- **Limitation:** the viewer Face tags tab lists video faces with a placeholder instead of a crop, and does not draw boxes on the video. People grids stay image-only.
 - **Open question:** whether the extra orientation retry passes, which exist in code but are
   switched off for every caller, should ever be exposed as a "try harder on photos with no faces"
   option.

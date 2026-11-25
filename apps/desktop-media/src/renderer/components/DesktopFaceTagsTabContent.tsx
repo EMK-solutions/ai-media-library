@@ -76,6 +76,15 @@ function formatFaceAgeGenderLine(faceInstance: DesktopFaceInstance | undefined):
   return parts.join(", ");
 }
 
+function VideoFacePlaceholder(): ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" className="size-full p-4 text-muted-foreground" aria-hidden="true">
+      <circle cx="12" cy="9" r="3.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5.5 19.5c1.2-2.6 3.4-4 6.5-4s5.3 1.4 6.5 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 interface DesktopFaceTagsTabContentProps {
   mediaItemId: string | null;
   sourcePath: string;
@@ -89,6 +98,9 @@ interface DesktopFaceTagsTabContentProps {
   onSelectIndex: (index: number) => void;
   onBoundingBoxesReplace: (boxes: BeingBoundingBox[]) => void;
   onRefreshMetadataBoxes: () => Promise<BeingBoundingBox[]>;
+  /** Video faces have no still crop and no overlay. Cards use a placeholder and list stored faces directly. */
+  usePlaceholderThumbnail?: boolean;
+  onFaceCountChange?: (count: number) => void;
 }
 
 export function DesktopFaceTagsTabContent({
@@ -102,6 +114,8 @@ export function DesktopFaceTagsTabContent({
   onSelectIndex,
   onBoundingBoxesReplace,
   onRefreshMetadataBoxes,
+  usePlaceholderThumbnail = false,
+  onFaceCountChange,
 }: DesktopFaceTagsTabContentProps): ReactElement {
   const faceDetectionSettings = useDesktopStore((s) => s.faceDetectionSettings);
   const [personTags, setPersonTags] = useState<DesktopPersonTagWithFaceCount[]>([]);
@@ -188,6 +202,10 @@ export function DesktopFaceTagsTabContent({
   }, [resolveMediaItemId]);
 
   useEffect(() => {
+    onFaceCountChange?.(faceInstances.length);
+  }, [faceInstances.length, onFaceCountChange]);
+
+  useEffect(() => {
     // Clear stale per-image state immediately on item switch. Without this,
     // a just-opened no-face image can briefly reuse previous image face rows
     // and synthesize overlays before the async DB fetch resolves.
@@ -199,6 +217,7 @@ export function DesktopFaceTagsTabContent({
   }, [loadFaceInstances, mediaItemId, sourcePath]);
 
   useEffect(() => {
+    if (usePlaceholderThumbnail) return;
     if (faceInstances.length === 0 || boundingBoxes.length > 0) return;
     void onRefreshMetadataBoxes().then((boxes) => {
       if (boxes.length > 0 || faceInstances.length === 0) return;
@@ -218,7 +237,7 @@ export function DesktopFaceTagsTabContent({
       }));
       onBoundingBoxesReplace(synthesized);
     });
-  }, [faceInstances, boundingBoxes.length]);
+  }, [faceInstances, boundingBoxes.length, usePlaceholderThumbnail]);
 
   const faceIndexMap = useMemo(() => {
     const map = new Map<number, DesktopFaceInstance>();
@@ -229,6 +248,21 @@ export function DesktopFaceTagsTabContent({
   }, [faceInstances]);
 
   const orderedFaceRows = useMemo(() => {
+    if (usePlaceholderThumbnail) {
+      return faceInstances.map((faceInstance, displayIdx) => {
+        const selectValue = faceInstance.tag?.id ?? SELECT_NONE;
+        const hasManualTag = selectValue !== SELECT_NONE;
+        const hasSuggestion = !hasManualTag && (embeddingSuggestions[faceInstance.id] ?? null) !== null;
+        const priority = hasManualTag ? 0 : hasSuggestion ? 1 : 2;
+        return {
+          displayIdx,
+          originalIndex: faceInstance.face_index,
+          box: undefined as BeingBoundingBox | undefined,
+          faceInstance,
+          priority,
+        };
+      }).sort((a, b) => a.priority - b.priority || a.displayIdx - b.displayIdx);
+    }
     const rows = faceDisplayOrder.map((originalIndex, displayIdx) => {
       const faceInstance = faceIndexMap.get(originalIndex);
       const selectValue = faceInstance?.tag?.id ?? SELECT_NONE;
@@ -247,7 +281,7 @@ export function DesktopFaceTagsTabContent({
     });
 
     return rows.sort((a, b) => a.priority - b.priority || a.displayIdx - b.displayIdx);
-  }, [faceDisplayOrder, faceIndexMap, embeddingSuggestions, boundingBoxes]);
+  }, [faceDisplayOrder, faceIndexMap, embeddingSuggestions, boundingBoxes, faceInstances, usePlaceholderThumbnail]);
 
   const handleAssignTag = async (faceInstance: DesktopFaceInstance | undefined, value: string) => {
     if (!faceInstance) {
@@ -344,7 +378,9 @@ export function DesktopFaceTagsTabContent({
               : instance,
           ),
       );
-      onBoundingBoxesReplace(boundingBoxes.filter((_box, i) => i !== faceInstance.face_index));
+      if (!usePlaceholderThumbnail) {
+        onBoundingBoxesReplace(boundingBoxes.filter((_box, i) => i !== faceInstance.face_index));
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to delete face instance.");
     } finally {
@@ -424,9 +460,11 @@ export function DesktopFaceTagsTabContent({
 
       {orderedFaceRows.length > 0 ? (
         <>
-          <p className="text-sm text-muted-foreground">
-            Click a face entry to highlight the corresponding bounding box on the photo.
-          </p>
+          {usePlaceholderThumbnail ? null : (
+            <p className="text-sm text-muted-foreground">
+              Click a face entry to highlight the corresponding bounding box on the photo.
+            </p>
+          )}
 
           {orderedFaceRows.map(({ box, displayIdx, originalIndex, faceInstance }) => {
             const isPending = Boolean(faceInstance && pendingFaceId === faceInstance.id);
@@ -446,8 +484,9 @@ export function DesktopFaceTagsTabContent({
                 index={displayIdx}
                 isSelected={selectedIndex === displayIdx}
                 onSelect={onSelectIndex}
+                thumbnail={usePlaceholderThumbnail ? <VideoFacePlaceholder /> : undefined}
                 thumbnailStyle={
-                  faceInstance
+                  !usePlaceholderThumbnail && faceInstance
                     ? desktopFaceTagsTabThumbnailStyle(
                         sourcePath,
                         faceInstance,
@@ -498,10 +537,10 @@ export function DesktopFaceTagsTabContent({
                 }
                 details={
                   <div className="space-y-1 text-xs text-muted-foreground">
-                    {getCategoryLabel(box.person_category) ? (
+                    {box && getCategoryLabel(box.person_category) ? (
                       <div>{getCategoryLabel(box.person_category)}</div>
                     ) : null}
-                    {box.gender ? <div>{getGenderLabel(box.gender)}</div> : null}
+                    {box?.gender ? <div>{getGenderLabel(box.gender)}</div> : null}
                     {ageGenderLine ? <div>{ageGenderLine}</div> : null}
                   </div>
                 }
@@ -519,6 +558,7 @@ export function DesktopFaceTagsTabContent({
         </div>
       )}
 
+      {usePlaceholderThumbnail ? null : (
       <div className="pt-2">
         <button
           type="button"
@@ -539,6 +579,7 @@ export function DesktopFaceTagsTabContent({
           )}
         </button>
       </div>
+      )}
     </div>
   );
 }
